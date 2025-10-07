@@ -1,0 +1,78 @@
+/* ========== Shell ========== */
+:root{
+  --page-max:1120px;
+  --pad-x:clamp(16px,4vw,32px);
+  --pad-y:clamp(8px,3vw,16px);
+}
+
+.app-shell{min-height:100dvh;display:flex;flex-direction:column}
+.app-header{position:sticky;top:0;z-index:10;background:var(--color-background,#fff);border-bottom:1px solid var(--gray-3,#eaeaea)}
+.app-main{flex:1}
+.app-footer{border-top:1px solid var(--gray-3,#eaeaea)}
+
+/* Constrain every page */
+.app-main > *{max-width:var(--page-max);margin-inline:auto;padding:var(--pad-y) var(--pad-x)}
+.app-main > .full-bleed{max-width:none;padding:0}
+
+/* Radix Container global sizing */
+.rt-Container{
+  width:100%!important;
+  max-width:var(--page-max)!important;
+  margin-inline:auto!important;
+}
+
+.rt-Heading{
+  letter-spacing: -1px !important;
+}
+
+/* Basics */
+*{box-sizing:border-box}
+img,video,canvas{max-width:100%;height:auto;display:block}
+h1,h2,h3{word-break:break-word}
+.no-scroll{overflow:hidden}
+
+/* ========== Navbar ========== */
+.navbar header{background:var(--color-background,#fff)}
+.nav-wrap{
+  max-width:var(--page-max);margin-inline:auto;
+  padding:var(--pad-y) var(--pad-x);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.nav-brand img{height:40px;display:block}
+@media (min-width:768px){.nav-brand img{height:50px}}
+
+.nav-links{display:none}
+.nav-burger{display:inline-flex;flex-direction:column;gap:5px;background:none;border:0;padding:10px;cursor:pointer}
+.nav-burger span{width:24px;height:2px;background:var(--gray-12,#111);border-radius:1px;transition:transform .2s,opacity .2s}
+.nav-burger.is-open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-burger.is-open span:nth-child(2){opacity:0}
+.nav-burger.is-open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+@media (min-width:900px){.nav-links{display:flex}.nav-burger{display:none}}
+
+/* Email pill */
+.email-pill{display:inline-block;padding:6px 10px;border-radius:999px;background:var(--accent-3);color:var(--accent-11);font-size:12px;border:0}
+.email-pill.clickable{cursor:pointer}
+
+/* ========== Drawer ========== */
+.nav-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);pointer-events:none;transition:background .2s}
+.nav-overlay.show{background:rgba(0,0,0,.4);pointer-events:auto}
+
+.nav-drawer{position:fixed;top:0;right:0;height:100%;width:min(86vw,360px);transform:translateX(100%);transition:transform .25s;z-index:1000;outline:0}
+.nav-drawer.open{transform:translateX(0)}
+.nav-drawer-inner{height:100%;background:var(--color-background,#fff);padding:24px;display:flex;flex-direction:column}
+.nav-drawer.open .nav-drawer-inner{box-shadow:-12px 0 24px rgba(0,0,0,.12)} /* shadow only when open */
+
+.nav-drawer-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+.brand-small img{height:28px;display:block}
+.close-x{font-size:28px;line-height:1;border:0;background:none;padding:4px 8px;cursor:pointer}
+
+.nav-drawer-links{display:flex;flex-direction:column;gap:14px}
+.nav-drawer-links a{font-size:16px;color:var(--gray-12,#111);padding:10px 4px;border-radius:8px}
+.nav-drawer-links a.active{background:var(--accent-4);color:var(--accent-12)}
+
+/* ========== Forms on small screens ========== */
+@media (max-width:768px){
+  .rt-Card,.rt-Box,form{width:100%}
+  .rt-TextFieldRoot,input,select,button{max-width:100%}
+  .rt-Separator[data-orientation="vertical"]{display:none!important}
+}
