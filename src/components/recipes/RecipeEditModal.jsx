@@ -3,6 +3,7 @@ import { Dialog, Button, Flex, Text, Card, Heading, Separator } from "@radix-ui/
 import { supabase } from "../../auth/supabaseClient.js";
 
 const STORAGE_BUCKET = "recipe-images";
+const PRESET_CATS = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
 function toPublicUrlIfNeeded(pathOrUrl) {
   if (!pathOrUrl) return "";
@@ -18,9 +19,21 @@ function toPublicUrlIfNeeded(pathOrUrl) {
       return u.toString();
     }
   } catch {
-    // Ignore URL parsing errors and return original path
+    // none
   }
   return pathOrUrl;
+}
+
+function uniqNames(arr) {
+  const seen = new Set();
+  const out = [];
+  for (const n of arr) {
+    const k = String(n ?? "").trim();
+    if (!k) continue;
+    const key = k.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); out.push(k); }
+  }
+  return out.sort((a, b) => a.localeCompare(b));
 }
 
 export default function RecipeModal({
@@ -40,23 +53,32 @@ export default function RecipeModal({
     is_public: false,
     ingredients: [],
   });
-
   const [form, setForm] = React.useState(initial ?? empty.current);
   const [previewUrl, setPreviewUrl] = React.useState("");
+
+  const [localCats, setLocalCats] = React.useState([]);
+  const [showNewCat, setShowNewCat] = React.useState(false);
+  const [newCat, setNewCat] = React.useState("");
+
+  const [ingQuery, setIngQuery] = React.useState("");
+  const [ingOptions, setIngOptions] = React.useState([]);
+  const [ingCats, setIngCats] = React.useState([]);
+  const [selectedIngCats, setSelectedIngCats] = React.useState([]);
+  const [ingLoading, setIngLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
     const f = initial ? { ...initial } : { ...empty.current };
     setForm(f);
     setPreviewUrl(f.image_url ? toPublicUrlIfNeeded(f.image_url) : "");
-  }, [open, initial]);
-
-  // ingredient search + filters
-  const [ingQuery, setIngQuery] = React.useState("");
-  const [ingOptions, setIngOptions] = React.useState([]);
-  const [ingCats, setIngCats] = React.useState([]);
-  const [selectedIngCats, setSelectedIngCats] = React.useState([]);
-  const [ingLoading, setIngLoading] = React.useState(false);
+    const server = (categories || []).map((c) => c.name);
+    setLocalCats(uniqNames([...(f.categories || []), ...server, ...PRESET_CATS]));
+    setNewCat("");
+    setShowNewCat(false);
+    setIngQuery("");
+    setSelectedIngCats([]);
+    setIngOptions([]);
+  }, [open, initial, categories]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -72,6 +94,8 @@ export default function RecipeModal({
       setIngCats(Array.from(set).sort().map((name) => ({ id: name, name })));
     })();
   }, [open]);
+
+  const ingActive = ingQuery.trim().length >= 2 || selectedIngCats.length > 0;
 
   const runIngredientSearch = React.useCallback(async (q, cats) => {
     if (!open) return;
@@ -92,31 +116,59 @@ export default function RecipeModal({
   }, [open]);
 
   React.useEffect(() => {
+    if (!open) return;
+    if (!ingActive) { setIngOptions([]); return; }
     const t = setTimeout(() => runIngredientSearch(ingQuery, selectedIngCats), 220);
     return () => clearTimeout(t);
-  }, [ingQuery, selectedIngCats, runIngredientSearch]);
+  }, [open, ingActive, ingQuery, selectedIngCats, runIngredientSearch]);
+
+  function toggleCategory(name) {
+    const n = String(name).trim();
+    if (!n) return;
+    setForm((f) => {
+      const has = (f.categories || []).some((x) => x.toLowerCase() === n.toLowerCase());
+      const next = has
+        ? f.categories.filter((x) => x.toLowerCase() !== n.toLowerCase())
+        : [...(f.categories || []), n];
+      return { ...f, categories: uniqNames(next) };
+    });
+  }
+  function addNewCategory() {
+    const n = newCat.trim();
+    if (!n) return;
+    setLocalCats((lc) => uniqNames([...lc, n]));
+    setForm((f) => ({ ...f, categories: uniqNames([...(f.categories || []), n]) }));
+    setNewCat("");
+    setShowNewCat(false);
+  }
 
   function toggleIngCat(name) {
     setSelectedIngCats((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   }
-
   function addIngredientRow(o) {
     if (!o) return;
     setForm((f) => {
       if (f.ingredients?.some((r) => r.ingredient_id === o.ingredient_id)) return f;
-      return { ...f, ingredients: [...(f.ingredients || []), { ingredient_id: o.ingredient_id, name: o.name, unit: o.unit || "g", grams: 0, note: "" }] };
+      return {
+        ...f,
+        ingredients: [
+          ...(f.ingredients || []),
+          { ingredient_id: o.ingredient_id, name: o.name, unit: o.unit || "g", grams: "" },
+        ],
+      };
     });
+    setIngQuery("");
+    setSelectedIngCats([]);
+    setIngOptions([]);
   }
   function setRowGrams(id, grams) {
-    setForm((f) => ({ ...f, ingredients: f.ingredients.map((r) => (r.ingredient_id === id ? { ...r, grams } : r)) }));
-  }
-  function setRowNote(id, note) {
-    setForm((f) => ({ ...f, ingredients: f.ingredients.map((r) => (r.ingredient_id === id ? { ...r, note } : r)) }));
+    // keep only digits
+    const cleaned = grams.replace(/[^\d]/g, "");
+    setForm((f) => ({ ...f, ingredients: f.ingredients.map((r) => (r.ingredient_id === id ? { ...r, grams: cleaned } : r)) }));
   }
   function removeRow(id) {
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((r) => r.ingredient_id !== id) }));
   }
-
   function onImageFile(e) {
     const file = e.target.files?.[0] || null;
     setForm((f) => ({ ...f, imageFile: file }));
@@ -127,128 +179,243 @@ export default function RecipeModal({
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content maxWidth="860px">
-        <Dialog.Title>{initial?.recipe_id ? "Edit recipe" : "Add recipe"}</Dialog.Title>
-        <Dialog.Description>Fill the fields and add ingredients.</Dialog.Description>
+      <Dialog.Content
+        maxWidth="980px"
+        style={{ maxHeight: "85vh", overflow: "auto" }}
+      >
+        {/* Top bar with Title and Actions on the right */}
+        <Flex justify="between" align="center" mb="2">
+          <Dialog.Title>{initial?.recipe_id ? "Edit recipe" : "Add recipe"}</Dialog.Title>
+          <Flex gap="2" align="center">
+            {err ? <Text color="red" mr="2">{err}</Text> : null}
+            <Dialog.Close>
+              <Button variant="soft">Cancel</Button>
+            </Dialog.Close>
+            <Button disabled={!canSave} onClick={() => onSave(form)}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </Flex>
+        </Flex>
 
-        <Card mt="3" p="3">
-          <Flex direction="column" gap="3">
-            <div>
-              <Text size="2">Name</Text>
-              <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={{ padding: 8, width: "100%" }} />
-            </div>
+        <style>{`
+          .recipe-modal-grid { display: block; }
+          @media (min-width: 900px) {
+            .recipe-modal-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 16px;
+              align-items: start;
+            }
+          }
+          /* Hide number input spinners */
+          input[type=number]::-webkit-outer-spin-button,
+          input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+          input[type=number] { -moz-appearance: textfield; }
+        `}</style>
 
-            <div>
-              <Text size="2">Recipe categories</Text>
+        <div className="recipe-modal-grid" style={{ marginTop: 8 }}>
+          {/* LEFT COLUMN */}
+          <Card p="3">
+            <Flex direction="column" gap="3">
+              <div>
+                <Text size="2">Name</Text>
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  style={{ padding: 8, width: "100%" }}
+                />
+              </div>
+
+              <div>
+                <Text size="2">Recipe categories</Text>
+                <Flex gap="2" wrap mt="1">
+                  {localCats.map((name) => {
+                    const active = form.categories?.some((x) => x.toLowerCase() === name.toLowerCase());
+                    return (
+                      <Button
+                        key={name}
+                        size="2"
+                        variant={active ? "solid" : "soft"}
+                        onClick={() => toggleCategory(name)}
+                      >
+                        {name}
+                      </Button>
+                    );
+                  })}
+                </Flex>
+
+                {!showNewCat ? (
+                  <Button
+                    size="1"
+                    variant="soft"
+                    color="gray"
+                    onClick={() => setShowNewCat(true)}
+                    style={{ marginTop: 8 }}
+                  >
+                    Add new…
+                  </Button>
+                ) : (
+                  <Flex gap="2" align="center" mt="2">
+                    <input
+                      placeholder="New category"
+                      value={newCat}
+                      onChange={(e) => setNewCat(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addNewCategory(); } }}
+                      style={{ flex: 1, padding: 8 }}
+                    />
+                    <Button type="button" onClick={addNewCategory}>Add</Button>
+                    <Button type="button" variant="soft" onClick={() => { setShowNewCat(false); setNewCat(""); }}>
+                      Cancel
+                    </Button>
+                  </Flex>
+                )}
+              </div>
+
+              <div>
+                <Text size="2">Image</Text>
+                <input type="file" accept="image/*" onChange={onImageFile} />
+                <div style={{ marginTop: 8, width: "100%", minHeight: 160 }}>
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt=""
+                      style={{ width: "100%", maxHeight: 160, borderRadius: 6, objectFit: "cover" }}
+                      onError={(ev) => (ev.currentTarget.style.display = "none")}
+                    />
+                  ) : (
+                    <div style={{ width: "100%", height: 160, borderRadius: 6, background: "rgba(0,0,0,0.04)" }} />
+                  )}
+                </div>
+              </div>
+            </Flex>
+          </Card>
+
+          {/* RIGHT COLUMN */}
+          <Card p="3">
+            <Flex direction="column" gap="3">
+              <Heading size="3" mb="1">Ingredients</Heading>
+
               <Flex gap="2" wrap mt="1">
-                {categories.map((c) => (
+                {ingCats.map((c) => (
                   <Button
                     key={c.id}
-                    size="2"
-                    variant={form.categories?.includes(c.name) ? "solid" : "soft"}
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        categories: f.categories?.includes(c.name) ? f.categories.filter((x) => x !== c.name) : [...(f.categories || []), c.name],
-                      }))
-                    }
+                    size="1"
+                    variant={selectedIngCats.includes(c.name) ? "solid" : "soft"}
+                    onClick={() => toggleIngCat(c.name)}
                   >
                     {c.name}
                   </Button>
                 ))}
-              </Flex>
-            </div>
-
-            <div>
-              <Text size="2">Image</Text>
-              <input type="file" accept="image/*" onChange={onImageFile} />
-              {previewUrl ? (
-                <div style={{ marginTop: 8 }}>
-                  <img src={previewUrl} alt="" style={{ height: 120, borderRadius: 6, objectFit: "cover" }} onError={(ev) => (ev.currentTarget.style.display = "none")} />
-                </div>
-              ) : null}
-            </div>
-
-            <Separator my="2" />
-
-            <div>
-              <Heading size="3" mb="1">Ingredients</Heading>
-              <Text size="2" color="gray">Search and filter by ingredient category. Click “Add”.</Text>
-
-              <Flex gap="2" wrap mt="2">
-                {ingCats.map((c) => (
-                  <Button key={c.id} size="1" variant={selectedIngCats.includes(c.name) ? "solid" : "soft"} onClick={() => toggleIngCat(c.name)}>
-                    {c.name}
+                {!!ingCats.length && (
+                  <Button size="1" variant="soft" onClick={() => setSelectedIngCats([])}>
+                    Clear filters
                   </Button>
-                ))}
-                {!!ingCats.length && <Button size="1" variant="soft" onClick={() => setSelectedIngCats([])}>Clear filters</Button>}
+                )}
               </Flex>
 
-              <Flex gap="2" align="center" style={{ marginTop: 8, marginBottom: 8 }}>
-                <input placeholder="Search ingredients… (min 2 chars or use filters)" value={ingQuery} onChange={(e) => setIngQuery(e.target.value)} style={{ flex: 1, padding: 8 }} />
-                <Button size="2" onClick={() => runIngredientSearch(ingQuery, selectedIngCats)}>{ingLoading ? "Searching…" : "Search"}</Button>
+              <Flex gap="2" align="center">
+                <input
+                  placeholder="Search ingredients… (min 2 chars or use filters)"
+                  value={ingQuery}
+                  onChange={(e) => setIngQuery(e.target.value)}
+                  style={{ flex: 1, padding: 8 }}
+                />
+                <Button size="2" onClick={() => { if (ingActive) runIngredientSearch(ingQuery, selectedIngCats); }}>
+                  {ingLoading ? "Searching…" : "Search"}
+                </Button>
               </Flex>
 
-              {ingOptions.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 8, marginBottom: 8 }}>
-                  {ingOptions.map((o) => (
-                    <Card key={o.ingredient_id} size="2">
-                      <Flex justify="between" align="center">
-                        <div>
+              {/* Search results */}
+              {ingActive && (
+                <div
+                  style={{
+                    maxHeight: 140,
+                    overflowY: "auto",
+                    paddingRight: 4,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                      gap: 6,
+                    }}
+                  >
+                    {ingOptions.map((o) => (
+                      <Card
+                        key={o.ingredient_id}
+                        size="1"
+                        style={{ padding: "6px 8px", lineHeight: 1.2 }}
+                      >
+                        <Flex justify="between" align="center">
                           <Text>{o.name}</Text>
-                          {o.category ? <div style={{ fontSize: 11, color: "#666" }}>{o.category}</div> : null}
-                        </div>
-                        <Button size="1" onClick={() => addIngredientRow(o)}>Add</Button>
-                      </Flex>
-                    </Card>
-                  ))}
+                          <Button size="1" onClick={() => addIngredientRow(o)}>Add</Button>
+                        </Flex>
+                      </Card>
+                    ))}
+                    {!ingOptions.length && (
+                      <div style={{ gridColumn: "1 / -1", padding: 8 }}>
+                        <Text color="gray">No matches.</Text>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: 6 }}>Ingredient</th>
-                      <th style={{ textAlign: "right", padding: 6, width: 140 }}>Grams</th>
-                      <th style={{ textAlign: "left", padding: 6, width: 220 }}>Note</th>
-                      <th style={{ padding: 6, width: 80 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(form.ingredients || []).map((r) => (
-                      <tr key={r.ingredient_id}>
-                        <td style={{ padding: 6 }}>
-                          <Text>{r.name}</Text> <Text size="1" color="gray">({r.unit || "g"})</Text>
-                        </td>
-                        <td style={{ padding: 6, textAlign: "right" }}>
-                          <input type="number" min="0" step="1" value={r.grams} onChange={(e) => setRowGrams(r.ingredient_id, e.target.value)} style={{ width: 120, padding: 6, textAlign: "right" }} />
-                        </td>
-                        <td style={{ padding: 6 }}>
-                          <input value={r.note || ""} onChange={(e) => setRowNote(r.ingredient_id, e.target.value)} style={{ width: "100%", padding: 6 }} placeholder="optional" />
-                        </td>
-                        <td style={{ padding: 6, textAlign: "center" }}>
-                          <Button size="1" variant="soft" onClick={() => removeRow(r.ingredient_id)}>Remove</Button>
-                        </td>
-                      </tr>
-                    ))}
-                    {(form.ingredients || []).length === 0 && (
-                      <tr><td colSpan={4} style={{ padding: 8 }}><Text color="gray">No ingredients added yet.</Text></td></tr>
-                    )}
-                  </tbody>
-                </table>
+              {/* Ingredient list: 2 columns grid */}
+              <style>{`
+                .ing-grid { display:grid; grid-template-columns:1fr; gap:6px; }
+                @media (min-width: 700px) { .ing-grid { grid-template-columns: 1fr 1fr; } }
+              `}</style>
+              <div style={{ marginTop: 4 }}>
+                <div className="ing-grid">
+                  {(form.ingredients || []).map((r) => (
+                    <Card key={r.ingredient_id} size="1" style={{ padding: "6px 8px" }}>
+                      <Flex align="center" justify="between" gap="2">
+                        <Text>{r.name}</Text>
+                        <Flex align="center" gap="2">
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              step="1"
+                              value={r.grams}
+                              onChange={(e) => setRowGrams(r.ingredient_id, e.target.value)}
+                              style={{ width: 60, padding: 6, textAlign: "right" }}
+                              aria-label="grams"
+                            />
+                            <Text>g</Text>
+                          </div>
+                          <Button
+                            size="1"
+                            variant="soft"
+                            color="gray"
+                            onClick={() => removeRow(r.ingredient_id)}
+                            aria-label={`remove ${r.name}`}
+                            style={{ padding: "0 8px" }}
+                          >
+                            ×
+                          </Button>
+                        </Flex>
+                      </Flex>
+                    </Card>
+                  ))}
+                  {(form.ingredients || []).length === 0 && (
+                    <Card size="1" style={{ gridColumn: "1 / -1", padding: 8 }}>
+                      <Text color="gray">No ingredients added yet.</Text>
+                    </Card>
+                  )}
+                </div>
               </div>
-            </div>
-
-            {err ? <Text color="red">{err}</Text> : null}
-
-            <Flex gap="2" mt="2">
-              <Button disabled={!canSave} onClick={() => onSave(form)}>{saving ? "Saving…" : "Save"}</Button>
-              <Dialog.Close><Button variant="soft">Cancel</Button></Dialog.Close>
             </Flex>
-          </Flex>
-        </Card>
+          </Card>
+        </div>
       </Dialog.Content>
     </Dialog.Root>
   );
 }
+
+

@@ -4,6 +4,7 @@ import { useAuth } from "../auth/hooks/useAuth.js";
 import { fetchRecipes, fetchCategories, upsertRecipe, deleteRecipe, uploadImage } from "../api/recipes.js";
 import RecipeEditModal from "../components/recipes/RecipeEditModal.jsx";
 import RecipeDetailsModal from "../components/recipes/RecipeDetailsModal.jsx";
+import RecipeSearchBar from "../components/recipes/RecipeSearchBar.jsx";
 
 export default function RecipesPage() {
   const { user } = useAuth();
@@ -14,7 +15,7 @@ export default function RecipesPage() {
   const [selectedCats, setSelectedCats] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [modalOpen, setModalOpen] = useState(false);
+  const [editOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -33,7 +34,6 @@ export default function RecipesPage() {
       ]);
       setCategories(cats || []);
       setRecipes(recs || []);
-      console.log(recs)
     } catch (e) {
       setErr(e?.message || String(e));
       setCategories([]);
@@ -49,13 +49,18 @@ export default function RecipesPage() {
     setSelectedCats((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   }, []);
 
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setSelectedCats([]);
+  }, []);
+
   const startAdd = useCallback(() => {
     if (!user) { setErr("Sign in to add recipes."); return; }
     setErr(""); setEditing(null); setModalOpen(true);
   }, [user]);
 
   const startEdit = useCallback((r) => {
-    const createdBy = r?.instructions?.created_by || null;
+    const createdBy = r?.author?.created_by || null;
     const isPublic = !!r.is_public;
     const isYours = createdBy && user?.id && createdBy === user.id;
     if (!isYours || isPublic) { setErr("You can only edit your private recipes."); return; }
@@ -111,7 +116,7 @@ export default function RecipesPage() {
       if (form.imageFile) {
         const { blob, name } = await resizeImage(form.imageFile, { maxW: 1600, maxH: 1600, maxBytes: 600 * 1024 });
         const path = `user_${user.id}/${Date.now()}_${name}`;
-        image_url = await uploadImage(blob, path, { upsert: true }); // returns storage PATH
+        image_url = await uploadImage(blob, path, { upsert: true });
       }
 
       await upsertRecipe({
@@ -142,65 +147,29 @@ export default function RecipesPage() {
 
   const createdById = user?.id || null;
   const pub = recipes.filter((r) => r.is_public === true);
-  const mine = recipes.filter((r) => r?.instructions?.created_by === createdById && !r.is_public);
+  const mine = recipes.filter((r) => r?.author?.created_by === createdById && !r.is_public);
 
   return (
     <Container size="3" py="6">
       <Flex justify="between" align="center" style={{ marginBottom: 12 }}>
-        <div>
-          <Heading>Recipes</Heading>
-        </div>
+        <div><Heading>Recipes</Heading></div>
         <Button onClick={startAdd}>Add recipe</Button>
       </Flex>
 
       <Card size="3" style={{ marginBottom: 12 }}>
-        <form onSubmit={(e) => { e.preventDefault(); loadAll(); }}>
-          <Flex gap="3" align="center">
-            <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: 1, padding: 8 }} />
-            <Button type="button" onClick={() => { setSearch(""); setSelectedCats([]); }}>Clear</Button>
-          </Flex>
-          <div style={{ marginTop: 8 }}>
-            <Text size="2" color="gray">Recipe filters</Text>
-            <Flex gap="2" wrap style={{ marginTop: 6 }}>
-              {categories.map((c) => (
-                <Button key={c.id} size="2" variant={selectedCats.includes(c.name) ? "solid" : "soft"} onClick={() => toggleCategory(c.name)}>
-                  {c.name}
-                </Button>
-              ))}
-            </Flex>
-          </div>
-        </form>
+        <RecipeSearchBar
+          search={search}
+          onSearchChange={setSearch}
+          categories={categories}
+          selectedCats={selectedCats}
+          onToggleCategory={toggleCategory}
+          onClear={clearFilters}
+          onSubmit={loadAll}
+        />
       </Card>
 
       {loading && <Text color="gray">Loading…</Text>}
       {err && <Text color="red">{err}</Text>}
-
-      <Heading size="3" mt="2">Public recipes</Heading>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12, marginTop: 8 }}>
-        {pub.map((r) => (
-          <Card size="3" key={`pub-${r.recipe_id}`}>
-            <Flex direction="column" gap="2">
-              {r.image_url ? (
-                <img
-                  src={r.image_url}
-                  alt={r.name}
-                  style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 6 }}
-                  onError={(ev) => (ev.currentTarget.style.display = "none")}
-                />
-              ) : null}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <Heading size="3" style={{ marginTop: 0 }}>{r.name}</Heading>
-              </div>
-              <Flex justify="end">
-                <Button size="2" variant="soft" onClick={() => openDetails(r)}>Details</Button>
-              </Flex>
-            </Flex>
-          </Card>
-        ))}
-        {!loading && pub.length === 0 && <Text color="gray">No public recipes match.</Text>}
-      </div>
-
-      <Separator my="4" />
 
       <Heading size="3" mt="2">Your private recipes</Heading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12, marginTop: 8 }}>
@@ -227,9 +196,35 @@ export default function RecipesPage() {
         {!loading && mine.length === 0 && <Text color="gray">No private recipes yet.</Text>}
       </div>
 
-      {/* Editor modal */}
+      <Separator my="4" />
+
+      <Heading size="3" mt="2">Public recipes</Heading>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12, marginTop: 8 }}>
+        {pub.map((r) => (
+          <Card size="3" key={`pub-${r.recipe_id}`}>
+            <Flex direction="column" gap="2">
+              {r.image_url ? (
+                <img
+                  src={r.image_url}
+                  alt={r.name}
+                  style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 6 }}
+                  onError={(ev) => (ev.currentTarget.style.display = "none")}
+                />
+              ) : null}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <Heading size="3" style={{ marginTop: 0 }}>{r.name}</Heading>
+              </div>
+              <Flex justify="end">
+                <Button size="2" variant="soft" onClick={() => openDetails(r)}>Details</Button>
+              </Flex>
+            </Flex>
+          </Card>
+        ))}
+        {!loading && pub.length === 0 && <Text color="gray">No public recipes match.</Text>}
+      </div>
+
       <RecipeEditModal
-        open={modalOpen}
+        open={editOpen}
         onOpenChange={setModalOpen}
         initial={editing || undefined}
         categories={categories}
@@ -238,7 +233,6 @@ export default function RecipesPage() {
         onSave={handleSave}
       />
 
-      {/* Details modal */}
       <RecipeDetailsModal
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
@@ -246,7 +240,7 @@ export default function RecipesPage() {
         canEdit={
           !!detailsRecipe &&
           !detailsRecipe.is_public &&
-          detailsRecipe?.instructions?.created_by === user?.id
+          detailsRecipe?.author?.created_by === user?.id
         }
         onEdit={() => {
           setDetailsOpen(false);

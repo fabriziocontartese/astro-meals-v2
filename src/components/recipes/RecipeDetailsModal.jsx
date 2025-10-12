@@ -16,8 +16,6 @@ export default function RecipeDetailsModal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="760px">
-        <Dialog.Title>Recipe details</Dialog.Title>
-        <Dialog.Description>Summary of the recipe.</Dialog.Description>
 
         <Card mt="3" p="3">
           <Flex direction="column" gap="3">
