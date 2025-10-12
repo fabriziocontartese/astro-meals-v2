@@ -1,10 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 
-// REWORK REWORK REWORK REWORK REWORK REWORK REWORK
 import AuthProviders from "./providers/AuthProvider.jsx";
 import { useAuth } from "./auth/hooks/useAuth.js";
-// REWORK REWORK REWORK REWORK REWORK REWORK REWORK
 
 import NavBar from "./components/NavBar.jsx";
 import Footer from "./components/Footer.jsx";
@@ -16,7 +14,6 @@ import ProfilePage from "./pages/ProfilePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import DemoPage from "./pages/DemoPage.jsx";
 
-// REWORK REWORK REWORK REWORK REWORK REWORK REWORK
 function RequireAuth({ children }) {
   const { user, ready } = useAuth();
   if (!ready) return null;
@@ -28,7 +25,6 @@ function RequireGuest({ children }) {
   if (!ready) return children;
   return user ? <Navigate to="/plan" replace /> : children;
 }
-// REWORK REWORK REWORK REWORK REWORK REWORK REWORK
 
 
 export default function App() {

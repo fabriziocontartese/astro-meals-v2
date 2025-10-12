@@ -43,13 +43,6 @@ export default function RecipeDetailsModal({
               <Heading size="3" mb="1">Ingredients</Heading>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: 6 }}>Ingredient</th>
-                      <th style={{ textAlign: "right", padding: 6, width: 140 }}>Grams</th>
-                      <th style={{ textAlign: "left", padding: 6, width: 220 }}>Note</th>
-                    </tr>
-                  </thead>
                   <tbody>
                     {items.map((r) => (
                       <tr key={r.ingredient_id}>
