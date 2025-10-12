@@ -1,47 +1,28 @@
+// src/components/recipes/RecipeSearchBar.jsx
 import React from "react";
-import { Flex, Text, Button, Checkbox } from "@radix-ui/themes";
+import { Flex, SegmentedControl, Text } from "@radix-ui/themes";
 
 export default function RecipeSearchBar({
   search,
   onSearchChange,
-  categories,
-  selectedCats,
-  onToggleCategory,
-  onClear,
-  onSubmit,
+  visibility,
+  onVisibilityChange,
 }) {
-  const handleSubmit = (e) => { e.preventDefault(); onSubmit && onSubmit(); };
-
   return (
-    <form onSubmit={handleSubmit}>
-      <Flex gap="3" align="center">
-        <input
-          placeholder="Search name..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          style={{ flex: 1, padding: 8 }}
-        />
-        <Button type="button" onClick={onClear}>Clear</Button>
-        <Button type="submit">Apply</Button>
+    <Flex gap="2" align="center" wrap="wrap">
+      <input
+        placeholder="Search name…"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
+        style={{ flex: 1, minWidth: 140, padding: 8 }}
+      />
+      <Flex align="center" gap="2">
+        <Text size="2" color="gray">Show</Text>
+        <SegmentedControl.Root value={visibility} onValueChange={onVisibilityChange}>
+          <SegmentedControl.Item value="all">All</SegmentedControl.Item>
+          <SegmentedControl.Item value="private">Only mine</SegmentedControl.Item>
+        </SegmentedControl.Root>
       </Flex>
-
-      <div style={{ marginTop: 8 }}>
-        <Text size="2" color="gray">Recipe filters</Text>
-        <Flex gap="3" wrap style={{ marginTop: 6 }}>
-          {categories.map((c) => {
-            const checked = selectedCats.includes(c.name);
-            return (
-              <label key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={() => onToggleCategory(c.name)}
-                />
-                <Text>{c.name}</Text>
-              </label>
-            );
-          })}
-        </Flex>
-      </div>
-    </form>
+    </Flex>
   );
 }

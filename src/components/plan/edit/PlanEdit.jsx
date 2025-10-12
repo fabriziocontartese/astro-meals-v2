@@ -1,36 +1,36 @@
+// src/components/plan/edit/PlanEdit.jsx
 import React, { useState } from "react";
-import { Flex, Card, Text, Button } from "@radix-ui/themes";
+import { Flex, Card } from "@radix-ui/themes";
+import RecipePicker from "./PlanRecipePicker.jsx";
 import PlanEditParameters from "./PlanEditParameters.jsx";
 import PlanEditCalendar from "./PlanEditCalendar.jsx";
-import PlanEditNutrition from "./PlanEditNutrition.jsx";
+import NutritionTargets from "./NutritionTargets.jsx";
 
 export default function PlanEdit({ plan, onSave, onBack }) {
   const [currentPlan, setCurrentPlan] = useState(plan);
-
-  const handleSaved = (saved) => {
-    setCurrentPlan(saved);
-    onSave?.(saved);
-  };
+  const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   return (
-    <div>
-      <PlanEditParameters plan={currentPlan} onSave={handleSaved} onBack={onBack} />
-      <Flex gap="4" wrap="wrap">
-        <Card size="3" style={{ flex: 1, minWidth: 260 }}>
-          <Flex direction="column" p="3" gap="3">
-            <Text size="4">Filters</Text>
-            <Text size="2" color="gray">Category, etc.</Text>
-            <Text size="4" mt="2">Meal Templates</Text>
-            <Flex direction="column" gap="2">
-              <Button size="2" variant="soft">Meal 1</Button>
-              <Button size="2" variant="soft">Meal 2</Button>
-              <Button size="2" variant="soft">Meal 3</Button>
-            </Flex>
-          </Flex>
+    <Flex direction="column" gap="3">
+      <PlanEditParameters
+        plan={currentPlan}
+        onSave={(p) => { setCurrentPlan(p); onSave?.(p); }}
+        onBack={onBack}
+        fullWidth
+      />
+
+      <Flex gap="3" align="start" wrap="wrap">
+        <RecipePicker selected={selectedRecipe} onSelect={setSelectedRecipe} />
+        <Card style={{ flex: "1 1 720px", minWidth: 720, overflow: "hidden" }}>
+          <PlanEditCalendar
+            plan={currentPlan}
+            onUpdate={setCurrentPlan}
+            selectedRecipe={selectedRecipe}
+          />
         </Card>
-        <PlanEditCalendar plan={currentPlan} onUpdate={setCurrentPlan} />
-        <PlanEditNutrition plan={currentPlan} onUpdate={setCurrentPlan} />
       </Flex>
-    </div>
+
+      <NutritionTargets plan={currentPlan} onUpdate={setCurrentPlan} />
+    </Flex>
   );
 }
