@@ -1,8 +1,28 @@
-import React, { useState } from "react";
+// src/components/plan/edit/PlanEditParameters.jsx
+import React, { useEffect, useRef, useState } from "react";
 import { Card, Flex, Button, TextField, Text } from "@radix-ui/themes";
 import { supabase } from "../../../auth/supabaseClient.js";
 
 const dayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+// ---- date helpers (local, no TZ drift)
+const toISO = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const parseYMD = (s) => {
+  if (!s) return new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const [y, m, d] = s.split("-").map((n) => parseInt(n, 10));
+  return new Date(y, m - 1, d);
+};
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const diffDays = (a, b) => {
+  const a0 = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  const b0 = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.floor((b0 - a0) / 86400000);
+};
 
 function buildFlatSchedule(plan) {
   const length = Number(plan?.length_days || 0);
@@ -26,34 +46,91 @@ function buildFlatSchedule(plan) {
 }
 
 export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=false }) {
-  const [lengthDays, setLengthDays] = useState(plan?.length_days ?? 42);
-  const [mealsPerDay, setMealsPerDay] = useState(plan?.meals_per_day ?? 4);
-  const [startDate, setStartDate] = useState(
-    plan?.objective?.start_date ?? new Date().toISOString().slice(0, 10)
-  );
   const [name, setName] = useState(plan?.name ?? "");
+  const [lengthDays, setLengthDays] = useState(String(plan?.length_days ?? 42));
+  const [mealsPerDay, setMealsPerDay] = useState(String(plan?.meals_per_day ?? 4));
+  const [startDate, setStartDate] = useState(plan?.objective?.start_date ?? toISO(new Date()));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  // --- AUTO-LOOP: if plan ended before today, roll start_date forward by whole cycles
+  const loopedOnce = useRef(false);
+  useEffect(() => {
+    if (loopedOnce.current) return;
+    const lenInt = parseInt(lengthDays, 10);
+    if (!Number.isInteger(lenInt) || lenInt < 1) return;
+
+    const start = parseYMD(plan?.objective?.start_date || startDate);
+    const today = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    const daysSinceStart = diffDays(start, today); // 0-based
+    if (daysSinceStart < lenInt) return;
+
+    const cycles = Math.floor(daysSinceStart / lenInt);
+    const newStart = addDays(start, cycles * lenInt); // moves to the day after the last finished cycle
+    const iso = toISO(newStart);
+
+    // update local state immediately
+    setStartDate(iso);
+    loopedOnce.current = true;
+
+    // persist minimal patch
+    (async () => {
+      try {
+        const nextObjective = { ...(plan?.objective || {}), start_date: iso };
+        const { data, error } = await supabase
+          .from("plans_v1")
+          .update({ objective: nextObjective })
+          .eq("plan_id", plan.plan_id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        onUpdate?.(data || { ...plan, objective: nextObjective });
+      } catch (e) {
+        setErr(e.message || "Auto-loop update failed");
+      }
+    })();
+  }, [plan?.objective?.start_date, lengthDays, onUpdate, plan, startDate]); // runs on mount and when inputs change
+
+  // inputs
+  const onChangeName = (e) => setName(e.target.value.slice(0, 25));
+  const clampOnChange = (value, max) => {
+    if (value === "") return "";
+    const n = Number.parseInt(value, 10);
+    if (Number.isNaN(n)) return value;
+    if (n > max) return String(max);
+    return String(n);
+  };
+  const onChangeDays = (e) => setLengthDays(clampOnChange(e.target.value, 90));
+  const onChangeMeals = (e) => setMealsPerDay(clampOnChange(e.target.value, 10));
+  const onBlurTrim = (setter) => (e) => setter(e.target.value.trim());
+
+  const lenInt = Number.parseInt(lengthDays, 10);
+  const mealsInt = Number.parseInt(mealsPerDay, 10);
+
+  const showNameMax = name.length >= 25;
+  const showDaysMax = Number(lengthDays) >= 90;
+  const showMealsMax = Number(mealsPerDay) >= 10;
 
   const persist = async () => {
     setErr("");
     if (!name.trim()) { setErr("Name required"); return null; }
-    if (!Number.isInteger(lengthDays) || lengthDays < 1) { setErr("Length ≥ 1"); return null; }
-    if (!Number.isInteger(mealsPerDay) || mealsPerDay < 1) { setErr("Meals/day ≥ 1"); return null; }
+    if (!Number.isInteger(lenInt) || lenInt < 1 || lenInt > 90) { setErr("Length (days) must be 1–90"); return null; }
+    if (!Number.isInteger(mealsInt) || mealsInt < 1 || mealsInt > 10) { setErr("Meals/day must be 1–10"); return null; }
 
-    const meal_names = (plan?.meal_names || []).slice(0, mealsPerDay);
-    while (meal_names.length < mealsPerDay) meal_names.push(`Meal ${meal_names.length + 1}`);
+    const base = Array.isArray(plan?.meal_names) ? plan.meal_names : [];
+    const meal_names = base.slice(0, mealsInt);
+    while (meal_names.length < mealsInt) meal_names.push(`Meal ${meal_names.length + 1}`);
 
     const weeks = plan?.plan_recipes?.weeks || {};
     const patch = {
       name: name.trim(),
-      length_days: lengthDays,
-      meals_per_day: mealsPerDay,
+      length_days: lenInt,
+      meals_per_day: mealsInt,
       meal_names,
       objective: { ...(plan.objective || {}), start_date: startDate },
       plan_recipes: {
         weeks,
-        flat: buildFlatSchedule({ ...plan, length_days: lengthDays, meal_names, plan_recipes: { weeks } }),
+        flat: buildFlatSchedule({ ...plan, length_days: lenInt, meal_names, plan_recipes: { weeks } }),
       },
     };
 
@@ -80,7 +157,6 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
     if (!data) return;
     onUpdate?.(data);
   };
-
   const saveAndExit = async () => {
     const data = await persist();
     if (!data) return;
@@ -91,41 +167,61 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
     <Card style={{ width: fullWidth ? "100%" : undefined }}>
       <Flex align="center" justify="between" p="3" wrap="wrap" gap="3">
         <Flex align="center" gap="5" wrap="wrap" style={{ flex: 1 }}>
-          <TextField.Root
-            placeholder="Plan name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ minWidth: 150, flex: "1 1 150px" }}
-          />
-          <Flex align="center" gap="2">
-            <Text size="2" color="gray">Length</Text>
+          <Flex direction="column" gap="1" style={{ minWidth: 180, flex: "1 1 180px" }}>
+            <Flex align="center" gap="2">
+              <Text size="2" color="gray">Name</Text>
+              {showNameMax && <Text size="2" color="red">max. reached</Text>}
+            </Flex>
+            <TextField.Root
+              placeholder="Plan name"
+              value={name}
+              maxLength={25}
+              onChange={onChangeName}
+              onBlur={onBlurTrim(setName)}
+            />
+          </Flex>
+
+          <Flex direction="column" gap="1">
+            <Flex align="center" gap="2">
+              <Text size="2" color="gray">Length (days)</Text>
+              {showDaysMax && <Text size="2" color="red">max. reached</Text>}
+            </Flex>
             <TextField.Root
               type="number"
               min={1}
+              max={90}
               value={lengthDays}
-              onChange={(e) => setLengthDays(Number(e.target.value))}
-              style={{ width: 50 }}
+              onChange={onChangeDays}
+              onBlur={onBlurTrim(setLengthDays)}
+              style={{ width: 90 }}
             />
-            <Text size="2" color="gray">days</Text>
           </Flex>
-          <Flex align="center" gap="2">
-            <Text size="2" color="gray">Start on</Text>
+
+          <Flex direction="column" gap="1">
+            <Flex align="center" gap="2">
+              <Text size="2" color="gray">Start on</Text>
+            </Flex>
             <TextField.Root
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              style={{ width: 150 }}
+              style={{ width: 160 }}
             />
           </Flex>
-          <Flex align="center" gap="2">
-            <Text size="2" color="gray">Meals x day</Text>
+
+          <Flex direction="column" gap="1">
+            <Flex align="center" gap="2">
+              <Text size="2" color="gray">Meals per day</Text>
+              {showMealsMax && <Text size="2" color="red">max. reached</Text>}
+            </Flex>
             <TextField.Root
               type="number"
               min={1}
               max={10}
               value={mealsPerDay}
-              onChange={(e) => setMealsPerDay(Number(e.target.value))}
-              style={{ width: 50 }}
+              onChange={onChangeMeals}
+              onBlur={onBlurTrim(setMealsPerDay)}
+              style={{ width: 90 }}
             />
           </Flex>
         </Flex>

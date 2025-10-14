@@ -4,7 +4,7 @@ import PlanViewCalendar from "./PlanViewCalendar.jsx";
 import PlanViewNutrition from "./PlanViewNutrition.jsx";
 
 export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelectPlan, onCreateNew }) {
-  const [viewMode, setViewMode] = React.useState("week");
+  const [viewMode] = React.useState("week");
 
   const vitamins = useMemo(() => {
     if (!ownerGoals) return "";
@@ -28,15 +28,8 @@ export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelec
     <Flex direction="column" gap="4">
       <Card>
         <Flex align="center" justify="between" wrap="wrap" p="3" gap="3">
-          <Heading size="6">Current Plan: {plan?.name ?? "—"}</Heading>
+          <Heading size="6"><u>Current Plan:</u> {plan?.name ?? "—"}</Heading>
           <Flex align="center" gap="3" wrap="wrap">
-            <Tabs.Root value={viewMode} onValueChange={setViewMode}>
-              <Tabs.List>
-                <Tabs.Trigger value="day">Day</Tabs.Trigger>
-                <Tabs.Trigger value="week">Week</Tabs.Trigger>
-                <Tabs.Trigger value="full">Full Plan</Tabs.Trigger>
-              </Tabs.List>
-            </Tabs.Root>
 
             <Button onClick={onEdit}>Edit</Button>
 

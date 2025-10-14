@@ -1,6 +1,9 @@
+// src/components/recipes/RecipeEditModal.jsx
+
 import React from "react";
-import { Dialog, Button, Flex, Text, Card, Heading, Separator } from "@radix-ui/themes";
+import { Dialog, Button, Flex, Text, Card, Heading } from "@radix-ui/themes";
 import { supabase } from "../../auth/supabaseClient.js";
+import CategoryButton from "../ui/CategoryButton.jsx";
 
 const STORAGE_BUCKET = "recipe-images";
 const PRESET_CATS = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -162,7 +165,6 @@ export default function RecipeModal({
     setIngOptions([]);
   }
   function setRowGrams(id, grams) {
-    // keep only digits
     const cleaned = grams.replace(/[^\d]/g, "");
     setForm((f) => ({ ...f, ingredients: f.ingredients.map((r) => (r.ingredient_id === id ? { ...r, grams: cleaned } : r)) }));
   }
@@ -183,7 +185,6 @@ export default function RecipeModal({
         maxWidth="980px"
         style={{ maxHeight: "85vh", overflow: "auto" }}
       >
-        {/* Top bar with Title and Actions on the right */}
         <Flex justify="between" align="center" mb="2">
           <Dialog.Title>{initial?.recipe_id ? "Edit recipe" : "Add recipe"}</Dialog.Title>
           <Flex gap="2" align="center">
@@ -207,7 +208,6 @@ export default function RecipeModal({
               align-items: start;
             }
           }
-          /* Hide number input spinners */
           input[type=number]::-webkit-outer-spin-button,
           input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
           input[type=number] { -moz-appearance: textfield; }
@@ -228,19 +228,17 @@ export default function RecipeModal({
               </div>
 
               <div>
-                <Text size="2">Recipe categories</Text>
+                <Text size="2">Add categories</Text>
                 <Flex gap="2" wrap mt="1">
                   {localCats.map((name) => {
                     const active = form.categories?.some((x) => x.toLowerCase() === name.toLowerCase());
                     return (
-                      <Button
+                      <CategoryButton
                         key={name}
-                        size="2"
-                        variant={active ? "solid" : "soft"}
+                        label={name}
+                        checked={!!active}
                         onClick={() => toggleCategory(name)}
-                      >
-                        {name}
-                      </Button>
+                      />
                     );
                   })}
                 </Flex>
@@ -298,14 +296,12 @@ export default function RecipeModal({
 
               <Flex gap="2" wrap mt="1">
                 {ingCats.map((c) => (
-                  <Button
+                  <CategoryButton
                     key={c.id}
-                    size="1"
-                    variant={selectedIngCats.includes(c.name) ? "solid" : "soft"}
+                    label={c.name}
+                    checked={selectedIngCats.includes(c.name)}
                     onClick={() => toggleIngCat(c.name)}
-                  >
-                    {c.name}
-                  </Button>
+                  />
                 ))}
                 {!!ingCats.length && (
                   <Button size="1" variant="soft" onClick={() => setSelectedIngCats([])}>
@@ -326,7 +322,6 @@ export default function RecipeModal({
                 </Button>
               </Flex>
 
-              {/* Search results */}
               {ingActive && (
                 <div
                   style={{
@@ -364,7 +359,6 @@ export default function RecipeModal({
                 </div>
               )}
 
-              {/* Ingredient list: 2 columns grid */}
               <style>{`
                 .ing-grid { display:grid; grid-template-columns:1fr; gap:6px; }
                 @media (min-width: 700px) { .ing-grid { grid-template-columns: 1fr 1fr; } }
@@ -417,5 +411,3 @@ export default function RecipeModal({
     </Dialog.Root>
   );
 }
-
-

@@ -36,8 +36,8 @@ export default function PlanCreate({ onCreate }) {
     const meals = Number.parseInt(mealsPerDay, 10);
 
     if (!name.trim()) return setError("Name required");
-    if (!Number.isInteger(len) || len < 1 || len > 60)
-      return setError("Length must be 1–60");
+    if (!Number.isInteger(len) || len < 1 || len > 90)
+      return setError("Length (days) must be 1–90");
     if (!Number.isInteger(meals) || meals < 1 || meals > 10)
       return setError("Meals/day must be 1–10");
 
@@ -106,13 +106,13 @@ export default function PlanCreate({ onCreate }) {
     return String(n);
   };
 
-  const onChangeDays = (e) => setLengthDays(clampOnChange(e.target.value, 60));
+  const onChangeDays = (e) => setLengthDays(clampOnChange(e.target.value, 90));
   const onChangeMeals = (e) => setMealsPerDay(clampOnChange(e.target.value, 10));
 
   const onBlurTrim = (setter) => (e) => setter(e.target.value.trim());
 
   const showNameMax = name.length >= 25;
-  const showDaysMax = Number(lengthDays) >= 60;
+  const showDaysMax = Number(lengthDays) >= 90;
   const showMealsMax = Number(mealsPerDay) >= 10;
 
   return (
@@ -135,7 +135,7 @@ export default function PlanCreate({ onCreate }) {
             )}
           </Flex>
           <TextField.Root
-            placeholder="e.g. 6-week Bulking"
+            placeholder="e.g. 6-week Cutting, Veggie Bulking, No Sugar Month Challenge"
             value={name}
             maxLength={25}
             onChange={onChangeName}
@@ -155,7 +155,7 @@ export default function PlanCreate({ onCreate }) {
           <TextField.Root
             type="number"
             min={1}
-            max={60}
+            max={90}
             value={lengthDays}
             onChange={onChangeDays}
             onBlur={onBlurTrim(setLengthDays)}

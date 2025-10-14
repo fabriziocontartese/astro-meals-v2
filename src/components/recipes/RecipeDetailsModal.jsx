@@ -1,3 +1,5 @@
+// src/components/recipes/RecipeDetailsModal.jsx
+
 import React from "react";
 import { Dialog, Button, Flex, Text, Card, Heading, Separator } from "@radix-ui/themes";
 
