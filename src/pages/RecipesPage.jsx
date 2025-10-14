@@ -1,3 +1,5 @@
+// src/pages/RecipesPage.jsx
+
 import React, { useEffect, useState, useCallback } from "react";
 import { Container, Heading, Text, Button, Card, Flex, Separator } from "@radix-ui/themes";
 import { useAuth } from "../auth/hooks/useAuth.js";
@@ -5,6 +7,11 @@ import { fetchRecipes, fetchCategories, upsertRecipe, deleteRecipe, uploadImage 
 import RecipeEditModal from "../components/recipes/RecipeEditModal.jsx";
 import RecipeDetailsModal from "../components/recipes/RecipeDetailsModal.jsx";
 import RecipeSearchBar from "../components/recipes/RecipeSearchBar.jsx";
+import RecipeComponentModal from "../components/recipes/RecipeComponentModal.jsx";
+
+function isComponentRecipe(r) {
+  return Array.isArray(r?.categories) && r.categories.some((x) => String(x).toLowerCase() === "component");
+}
 
 export default function RecipesPage() {
   const { user } = useAuth();
@@ -23,6 +30,8 @@ export default function RecipesPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecipe, setDetailsRecipe] = useState(null);
 
+  const [componentsOpen, setComponentsOpen] = useState(false);
+
   const loadAll = useCallback(async () => {
     setErr("");
     setLoading(true);
@@ -33,7 +42,8 @@ export default function RecipesPage() {
         fetchRecipes(uid, { search, categoryIds: selectedCats }),
       ]);
       setCategories(cats || []);
-      setRecipes(recs || []);
+      // Hide Component recipes from main lists
+      setRecipes((recs || []).filter((r) => !isComponentRecipe(r)));
     } catch (e) {
       setErr(e?.message || String(e));
       setCategories([]);
@@ -72,10 +82,12 @@ export default function RecipesPage() {
       is_public: false,
       ingredients: Array.isArray(r.ingredients)
         ? r.ingredients.map((x) => ({
+            type: x.type,
+            component_id: x.component_id ?? null,
             ingredient_id: x.ingredient_id ?? x.id ?? x.ingredientId ?? null,
             name: x.name ?? "",
-            unit: x.unit ?? "g",
-            grams: Number(x.grams ?? x.weight_g ?? 0) || 0,
+            unit: x.unit ?? (x.type === "component" ? "serving" : "g"),
+            grams: Number(x.grams ?? x.weight_g ?? (x.type === "component" ? 1 : 0)) || 0,
             note: x.note ?? "",
           }))
         : [],
@@ -127,9 +139,11 @@ export default function RecipesPage() {
         categories: form.categories,
         is_public: false,
         ingredients: (form.ingredients || []).map((r) => ({
-          ingredient_id: r.ingredient_id,
+          type: r.type,
+          component_id: r.component_id ?? null,
+          ingredient_id: r.ingredient_id ?? null,
           name: r.name,
-          unit: r.unit || "g",
+          unit: r.unit || (r.type === "component" ? "serving" : "g"),
           grams: Number(r.grams) || 0,
           note: r.note || "",
         })),
@@ -151,9 +165,12 @@ export default function RecipesPage() {
 
   return (
     <Container size="3" py="6">
-      <Flex justify="between" align="center" style={{ marginBottom: 12 }}>
+      <Flex justify="between" align="center" style={{ marginBottom: 12, gap: 8 }}>
         <div><Heading>Recipes</Heading></div>
-        <Button onClick={startAdd}>Add recipe</Button>
+        <Flex gap="2">
+          <Button variant="soft" onClick={() => setComponentsOpen(true)}>Components</Button>
+          <Button onClick={startAdd}>Add recipe</Button>
+        </Flex>
       </Flex>
 
       <Card size="3" style={{ marginBottom: 12 }}>
@@ -253,6 +270,13 @@ export default function RecipesPage() {
           setDetailsRecipe(null);
           await loadAll();
         }}
+      />
+
+      <RecipeComponentModal
+        open={componentsOpen}
+        onOpenChange={setComponentsOpen}
+        userId={user?.id || null}
+        onAfterChange={() => {}}
       />
     </Container>
   );
