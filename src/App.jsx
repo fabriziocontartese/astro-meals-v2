@@ -26,7 +26,6 @@ function RequireGuest({ children }) {
   return user ? <Navigate to="/plan" replace /> : children;
 }
 
-
 export default function App() {
   return (
     <AuthProviders>
@@ -38,10 +37,15 @@ export default function App() {
               <Route path="/" element={<RequireGuest><LandingPage /></RequireGuest>} />
               <Route path="/demo" element={<RequireGuest><DemoPage /></RequireGuest>} />
               <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
+
+              {/* Plan routes */}
               <Route path="/plan" element={<RequireAuth><PlanPage /></RequireAuth>} />
+              <Route path="/plan/:userId/:planId" element={<RequireAuth><PlanPage /></RequireAuth>} />
+
               <Route path="/recipes" element={<RequireAuth><RecipesPage /></RequireAuth>} />
               <Route path="/learn" element={<RequireAuth><LearnPage /></RequireAuth>} />
               <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

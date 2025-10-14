@@ -6,7 +6,7 @@ import PlanEditParameters from "./PlanEditParameters.jsx";
 import PlanEditCalendar from "./PlanEditCalendar.jsx";
 import NutritionTargets from "./NutritionTargets.jsx";
 
-export default function PlanEdit({ plan, onSave, onBack }) {
+export default function PlanEdit({ plan, onSave }) {
   const [currentPlan, setCurrentPlan] = useState(plan);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
@@ -14,8 +14,8 @@ export default function PlanEdit({ plan, onSave, onBack }) {
     <Flex direction="column" gap="3">
       <PlanEditParameters
         plan={currentPlan}
+        onUpdate={(p) => setCurrentPlan(p)}
         onSave={(p) => { setCurrentPlan(p); onSave?.(p); }}
-        onBack={onBack}
         fullWidth
       />
 

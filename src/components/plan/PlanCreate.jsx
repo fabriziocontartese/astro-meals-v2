@@ -1,6 +1,8 @@
+// src/components/plan/PlanCreate.jsx
 import React, { useState, useEffect } from "react";
 import { Card, Flex, Button, Heading, Text, TextField } from "@radix-ui/themes";
-import { supabase } from "../../auth/supabaseClient";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../../auth/supabaseClient.js";
 
 export default function PlanCreate({ onCreate }) {
   const [name, setName] = useState("");
@@ -9,6 +11,7 @@ export default function PlanCreate({ onCreate }) {
   const [mealNames, setMealNames] = useState(["Breakfast", "Lunch", "Snack", "Dinner"]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMealNames((prev) => {
@@ -37,11 +40,9 @@ export default function PlanCreate({ onCreate }) {
       const owner_profile_id = user?.id;
       if (!owner_profile_id) throw new Error("Not authenticated");
 
-      // Ensure FK + RLS precondition: a matching profile row exists
-      const { error: profileErr } = await supabase
+      await supabase
         .from("profiles_v1")
         .upsert({ profile_id: owner_profile_id }, { onConflict: "profile_id" });
-      if (profileErr) throw profileErr;
 
       const insertRow = {
         owner_profile_id,
@@ -62,6 +63,9 @@ export default function PlanCreate({ onCreate }) {
       if (error) throw error;
 
       onCreate?.(data);
+
+      // navigate to the new plan route
+      navigate(`/plan/${owner_profile_id}/${data.plan_id}`, { replace: true });
 
       setName("");
       setLengthDays(42);

@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import { Flex, Card, Text, Progress } from "@radix-ui/themes";
-import { supabase } from "../../../auth/supabaseClient";
 
 const pct = (v) => {
   const n = Number(v);
@@ -8,35 +7,15 @@ const pct = (v) => {
   return Math.max(0, Math.min(100, n));
 };
 
-export default function PlanViewNutrition() {
-  const [nutrition, setNutrition] = useState({ energy: 1974, protein: 70, carb: 60, starch: 50, fiber: 40, fat: 30 });
-
-  useEffect(() => {
-    const fetchNutrition = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        const userId = user?.id;
-        if (!userId) return;
-        const { data, error } = await supabase
-          .from("goals_v1")
-          .select("macro_protein_total, macro_carb_total, macro_carb_starch, macro_carb_fiber, macro_fat_total")
-          .eq("profile_id", userId)
-          .single();
-        if (error) throw error;
-        setNutrition({
-          energy: 2000,
-          protein: data?.macro_protein_total ?? 70,
-          carb: data?.macro_carb_total ?? 60,
-          starch: data?.macro_carb_starch ?? 50,
-          fiber: data?.macro_carb_fiber ?? 40,
-          fat: data?.macro_fat_total ?? 30,
-        });
-      } catch (err) {
-        console.error("Error fetching nutrition:", err);
-      }
-    };
-    fetchNutrition();
-  }, []);
+export default function PlanViewNutrition({ ownerGoals }) {
+  const nutrition = useMemo(() => ({
+    energy: 2000,
+    protein: ownerGoals?.macro_protein_total ?? 70,
+    carb: ownerGoals?.macro_carb_total ?? 60,
+    starch: ownerGoals?.macro_carb_starch ?? 50,
+    fiber: ownerGoals?.macro_carb_fiber ?? 40,
+    fat: ownerGoals?.macro_fat_total ?? 30,
+  }), [ownerGoals]);
 
   return (
     <Card style={{ flex: 1 }}>

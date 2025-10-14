@@ -1,7 +1,6 @@
-// src/components/plan/edit/PlanEditParameters.jsx
 import React, { useState } from "react";
 import { Card, Flex, Button, TextField, Text } from "@radix-ui/themes";
-import { supabase } from "../../../auth/supabaseClient";
+import { supabase } from "../../../auth/supabaseClient.js";
 
 const dayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
@@ -26,7 +25,7 @@ function buildFlatSchedule(plan) {
   return { days, meals, length_days: length };
 }
 
-export default function PlanEditParameters({ plan, onSave, fullWidth=false }) {
+export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=false }) {
   const [lengthDays, setLengthDays] = useState(plan?.length_days ?? 42);
   const [mealsPerDay, setMealsPerDay] = useState(plan?.meals_per_day ?? 4);
   const [startDate, setStartDate] = useState(
@@ -36,60 +35,56 @@ export default function PlanEditParameters({ plan, onSave, fullWidth=false }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const handleBack = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.location.href = "/plans";
-    } catch {
-      console.error("Navigation to /plans failed");
-    }
-  };
-  
-
-  const update = async () => {
+  const persist = async () => {
     setErr("");
-    if (!name.trim()) return setErr("Name required");
-    if (!Number.isInteger(lengthDays) || lengthDays < 1) return setErr("Length ≥ 1");
-    if (!Number.isInteger(mealsPerDay) || mealsPerDay < 1) return setErr("Meals/day ≥ 1");
+    if (!name.trim()) { setErr("Name required"); return null; }
+    if (!Number.isInteger(lengthDays) || lengthDays < 1) { setErr("Length ≥ 1"); return null; }
+    if (!Number.isInteger(mealsPerDay) || mealsPerDay < 1) { setErr("Meals/day ≥ 1"); return null; }
 
     const meal_names = (plan?.meal_names || []).slice(0, mealsPerDay);
     while (meal_names.length < mealsPerDay) meal_names.push(`Meal ${meal_names.length + 1}`);
 
     const weeks = plan?.plan_recipes?.weeks || {};
-    const nextPlanShape = {
-      ...plan,
+    const patch = {
       name: name.trim(),
       length_days: lengthDays,
       meals_per_day: mealsPerDay,
       meal_names,
       objective: { ...(plan.objective || {}), start_date: startDate },
-      plan_recipes: { weeks, flat: buildFlatSchedule({ ...plan, length_days: lengthDays, meal_names, plan_recipes: { weeks } }) },
-      nutrition: plan?.nutrition || undefined,
+      plan_recipes: {
+        weeks,
+        flat: buildFlatSchedule({ ...plan, length_days: lengthDays, meal_names, plan_recipes: { weeks } }),
+      },
     };
 
     setBusy(true);
     try {
       const { data, error } = await supabase
         .from("plans_v1")
-        .update({
-          name: nextPlanShape.name,
-          length_days: nextPlanShape.length_days,
-          meals_per_day: nextPlanShape.meals_per_day,
-          meal_names: nextPlanShape.meal_names,
-          objective: nextPlanShape.objective,
-          plan_recipes: nextPlanShape.plan_recipes,
-        })
+        .update(patch)
         .eq("plan_id", plan.plan_id)
         .select("*")
         .single();
       if (error) throw error;
-      onSave?.(data);
+      return data;
     } catch (e) {
       setErr(e.message || "Update failed");
+      return null;
     } finally {
       setBusy(false);
     }
+  };
+
+  const updateAndRefresh = async () => {
+    const data = await persist();
+    if (!data) return;
+    onUpdate?.(data);
+  };
+
+  const saveAndExit = async () => {
+    const data = await persist();
+    if (!data) return;
+    onSave?.(data);
   };
 
   return (
@@ -134,10 +129,15 @@ export default function PlanEditParameters({ plan, onSave, fullWidth=false }) {
             />
           </Flex>
         </Flex>
+
         <Flex align="center" gap="2" wrap="wrap" onClick={(e)=>e.stopPropagation()}>
           {err ? <Text size="2" color="red">{err}</Text> : null}
-          <Button onClick={update} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
-          <Button variant="ghost" onClick={handleBack}>Back</Button>
+          <Button variant="soft" onClick={updateAndRefresh} disabled={busy}>
+            {busy ? "Updating…" : "Update"}
+          </Button>
+          <Button onClick={saveAndExit} disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
         </Flex>
       </Flex>
     </Card>
