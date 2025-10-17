@@ -1,10 +1,11 @@
+// src/components/plan/view/PlanView.jsx
 import React, { useMemo } from "react";
 import { Flex, Button, Heading, Tabs, Card, Text, DropdownMenu } from "@radix-ui/themes";
 import PlanViewCalendar from "./PlanViewCalendar.jsx";
 import PlanViewNutrition from "./PlanViewNutrition.jsx";
 
 export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelectPlan, onCreateNew }) {
-  const [viewMode] = React.useState("week");
+  const [viewMode, setViewMode] = React.useState("full");
 
   const vitamins = useMemo(() => {
     if (!ownerGoals) return "";
@@ -30,6 +31,13 @@ export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelec
         <Flex align="center" justify="between" wrap="wrap" p="3" gap="3">
           <Heading size="6"><u>Current Plan:</u> {plan?.name ?? "—"}</Heading>
           <Flex align="center" gap="3" wrap="wrap">
+            {/* View toggle */}
+            <Tabs.Root value={viewMode} onValueChange={setViewMode}>
+              <Tabs.List>
+                <Tabs.Trigger value="full">Full</Tabs.Trigger>
+                <Tabs.Trigger value="day">Day</Tabs.Trigger>
+              </Tabs.List>
+            </Tabs.Root>
 
             <Button onClick={onEdit}>Edit</Button>
 

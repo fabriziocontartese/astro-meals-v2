@@ -1,24 +1,24 @@
 // src/components/recipes/RecipeDetailsModal.jsx
-
 import React from "react";
 import { Dialog, Button, Flex, Text, Card, Heading, Separator } from "@radix-ui/themes";
 import { supabase } from "../../auth/supabaseClient.js";
 
 const PLACEHOLDER = "/storage/v1/object/public/placeholder/placeholder";
 
-function toPublicUrlIfNeeded(pathOrUrl) {
-  if (!pathOrUrl) return "";
-  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+// ---------- helper ----------
+function toPublicUrl(pathOrKey) {
+  if (!pathOrKey) return "";
+  if (/^https?:\/\//i.test(pathOrKey)) return pathOrKey;
+  const cleaned = String(pathOrKey).replace(/^\/+/, "");
+  const [bucket, ...rest] = cleaned.split("/");
+  if (!bucket || rest.length === 0) return pathOrKey;
   try {
-    const u = new URL(pathOrUrl, window.location.origin);
-    if (u.pathname.includes("/storage/v1/object/") && !u.pathname.includes("/storage/v1/object/public/")) {
-      u.pathname = u.pathname.replace("/storage/v1/object/", "/storage/v1/object/public/");
-      return u.toString();
-    }
+    const key = rest.join("/");
+    const { data } = supabase.storage.from(bucket).getPublicUrl(key);
+    return data?.publicUrl || pathOrKey;
   } catch {
-    // none
+    return pathOrKey;
   }
-  return pathOrUrl;
 }
 
 export default function RecipeDetailsModal({
@@ -37,10 +37,7 @@ export default function RecipeDetailsModal({
     [recipe?.ingredients]
   );
 
-  // rows with component_id are embedded components
   const comps = React.useMemo(() => items.filter((r) => r?.component_id), [items]);
-
-  // base ingredients have ingredient_id and no component_id
   const basics = React.useMemo(
     () => items.filter((r) => !r?.component_id && r?.ingredient_id),
     [items]
@@ -53,7 +50,10 @@ export default function RecipeDetailsModal({
     }
     (async () => {
       const ids = comps.map((c) => c.component_id).filter(Boolean);
-      if (!ids.length) { setComponentDetails([]); return; }
+      if (!ids.length) {
+        setComponentDetails([]);
+        return;
+      }
       const { data, error } = await supabase
         .from("recipes_v1")
         .select("recipe_id,name,image_url,ingredients")
@@ -97,12 +97,11 @@ export default function RecipeDetailsModal({
 
   if (!recipe) return null;
 
-  const mainImage = toPublicUrlIfNeeded(recipe.image_url) || PLACEHOLDER;
+  const mainImage = toPublicUrl(recipe.image_url) || PLACEHOLDER;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="760px">
-        {/* Accessibility: provide required Title and Description */}
         <Dialog.Title>{recipe.name || "Recipe details"}</Dialog.Title>
         <Dialog.Description>Ingredients, components, and metadata</Dialog.Description>
 
@@ -110,21 +109,21 @@ export default function RecipeDetailsModal({
           <Flex direction="column" gap="3">
             <Heading size="4" style={{ margin: 0 }}>{recipe.name}</Heading>
 
-            {mainImage ? (
+            {mainImage && (
               <img
                 src={mainImage}
                 alt={recipe.name}
                 style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8 }}
                 onError={(ev) => (ev.currentTarget.src = PLACEHOLDER)}
               />
-            ) : null}
+            )}
 
-            {cats.length ? (
+            {cats.length > 0 && (
               <div>
                 <Text size="2" color="gray">Categories</Text>
                 <div style={{ marginTop: 6 }}>{cats.join(" • ")}</div>
               </div>
-            ) : null}
+            )}
 
             <Separator my="2" />
 
@@ -172,11 +171,26 @@ export default function RecipeDetailsModal({
                     {componentDetails.map((c) => {
                       const parentRow = comps.find((x) => x.component_id === c.recipe_id) || {};
                       const qty = Number(parentRow.qty ?? parentRow.servings ?? parentRow.grams ?? 1);
+                      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+                      const imgUrl = toPublicUrl(c.image_url);
                       return (
                         <Card key={c.recipe_id} size="2">
                           <Flex direction="column" gap="2">
+                            {imgUrl && (
+                              <img
+                                src={imgUrl}
+                                alt={c.name}
+                                style={{
+                                  width: "100%",
+                                  height: 120,
+                                  objectFit: "cover",
+                                  borderRadius: 6,
+                                }}
+                                onError={(ev) => (ev.currentTarget.style.display = "none")}
+                              />
+                            )}
                             <Heading size="3" style={{ marginTop: 0 }}>{c.name}</Heading>
-                            <Text size="1" color="gray">Quantity: {Number.isFinite(qty) && qty > 0 ? qty : 1}</Text>
+                            <Text size="1" color="gray">Quantity: {safeQty}</Text>
                             <ul style={{ margin: 0, paddingInlineStart: 18 }}>
                               {(Array.isArray(c.ingredients) ? c.ingredients : []).map((i) => (
                                 <li key={i.ingredient_id || i.name}>
