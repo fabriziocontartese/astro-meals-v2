@@ -5,7 +5,7 @@ import { supabase } from "../../auth/supabaseClient.js";
 
 const PLACEHOLDER = "/storage/v1/object/public/placeholder/placeholder";
 
-// ---------- helper ----------
+// ---------- helpers ----------
 function toPublicUrl(pathOrKey) {
   if (!pathOrKey) return "";
   if (/^https?:\/\//i.test(pathOrKey)) return pathOrKey;
@@ -19,6 +19,24 @@ function toPublicUrl(pathOrKey) {
   } catch {
     return pathOrKey;
   }
+}
+
+// Controlled image with stable fallback to avoid flicker
+function Img({ src, alt = "", style, width, height }) {
+  const base = toPublicUrl(src) || "";
+  const [cur, setCur] = React.useState(base);
+  React.useEffect(() => { setCur(base); }, [base]);
+  return (
+    <img
+      src={cur || PLACEHOLDER}
+      alt={alt}
+      loading="lazy"
+      width={width}
+      height={height}
+      style={style}
+      onError={() => setCur(PLACEHOLDER)}
+    />
+  );
 }
 
 export default function RecipeDetailsModal({
@@ -44,16 +62,10 @@ export default function RecipeDetailsModal({
   );
 
   React.useEffect(() => {
-    if (!open || comps.length === 0) {
-      setComponentDetails([]);
-      return;
-    }
+    if (!open || comps.length === 0) { setComponentDetails([]); return; }
     (async () => {
       const ids = comps.map((c) => c.component_id).filter(Boolean);
-      if (!ids.length) {
-        setComponentDetails([]);
-        return;
-      }
+      if (!ids.length) { setComponentDetails([]); return; }
       const { data, error } = await supabase
         .from("recipes_v1")
         .select("recipe_id,name,image_url,ingredients")
@@ -97,8 +109,6 @@ export default function RecipeDetailsModal({
 
   if (!recipe) return null;
 
-  const mainImage = toPublicUrl(recipe.image_url) || PLACEHOLDER;
-
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="760px">
@@ -109,14 +119,12 @@ export default function RecipeDetailsModal({
           <Flex direction="column" gap="3">
             <Heading size="4" style={{ margin: 0 }}>{recipe.name}</Heading>
 
-            {mainImage && (
-              <img
-                src={mainImage}
-                alt={recipe.name}
-                style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8 }}
-                onError={(ev) => (ev.currentTarget.src = PLACEHOLDER)}
-              />
-            )}
+            <Img
+              src={recipe?.image_url}
+              alt={recipe?.name}
+              height={280}
+              style={{ width: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8 }}
+            />
 
             {cats.length > 0 && (
               <div>
@@ -172,23 +180,15 @@ export default function RecipeDetailsModal({
                       const parentRow = comps.find((x) => x.component_id === c.recipe_id) || {};
                       const qty = Number(parentRow.qty ?? parentRow.servings ?? parentRow.grams ?? 1);
                       const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
-                      const imgUrl = toPublicUrl(c.image_url);
                       return (
                         <Card key={c.recipe_id} size="2">
                           <Flex direction="column" gap="2">
-                            {imgUrl && (
-                              <img
-                                src={imgUrl}
-                                alt={c.name}
-                                style={{
-                                  width: "100%",
-                                  height: 120,
-                                  objectFit: "cover",
-                                  borderRadius: 6,
-                                }}
-                                onError={(ev) => (ev.currentTarget.style.display = "none")}
-                              />
-                            )}
+                            <Img
+                              src={c.image_url}
+                              alt={c.name}
+                              height={120}
+                              style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 6 }}
+                            />
                             <Heading size="3" style={{ marginTop: 0 }}>{c.name}</Heading>
                             <Text size="1" color="gray">Quantity: {safeQty}</Text>
                             <ul style={{ margin: 0, paddingInlineStart: 18 }}>
