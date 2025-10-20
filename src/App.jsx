@@ -38,7 +38,6 @@ export default function App() {
               <Route path="/demo" element={<RequireGuest><DemoPage /></RequireGuest>} />
               <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
 
-              {/* Plan routes */}
               <Route path="/plan" element={<RequireAuth><PlanPage /></RequireAuth>} />
               <Route path="/plan/:userId/:planId" element={<RequireAuth><PlanPage /></RequireAuth>} />
 

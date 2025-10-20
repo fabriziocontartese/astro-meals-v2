@@ -3,7 +3,7 @@ import { Container } from "@radix-ui/themes";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../auth/supabaseClient.js";
 import PlanView from "../components/plan/view/PlanView.jsx";
-import PlanEdit from "../components/plan/edit/PlanEdit.jsx";
+import PlanEdit from "../pages/PlanEditPage.jsx";
 import PlanCreate from "../components/plan/PlanCreate.jsx";
 
 export default function PlanPage() {

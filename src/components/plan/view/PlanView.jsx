@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Flex, Button, Heading, Tabs, Card, Text, DropdownMenu } from "@radix-ui/themes";
+import { Flex, Button, Heading, Card, Text, DropdownMenu } from "@radix-ui/themes";
 import PlanViewCalendar from "./PlanViewCalendar.jsx";
 import PlanViewNutrition from "./PlanViewNutrition.jsx";
 

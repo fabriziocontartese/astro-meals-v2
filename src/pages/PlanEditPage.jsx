@@ -1,10 +1,10 @@
 // src/components/plan/edit/PlanEdit.jsx
 import React, { useState } from "react";
 import { Flex, Card } from "@radix-ui/themes";
-import RecipePicker from "./PlanRecipePicker.jsx";
-import PlanEditParameters from "./PlanEditParameters.jsx";
-import PlanEditCalendar from "./PlanEditCalendar.jsx";
-import NutritionTargets from "./NutritionTargets.jsx";
+import RecipePicker from "../components/plan/edit/PlanRecipePicker";
+import PlanEditParameters from "../components/plan/edit/PlanEditParameters.jsx";
+import PlanEditCalendar from "../components/plan/edit/PlanEditCalendar.jsx";
+import NutritionTargets from "../components/plan/edit/NutritionTargets.jsx";
 
 export default function PlanEdit({ plan, onSave }) {
   const [currentPlan, setCurrentPlan] = useState(plan);
