@@ -1,4 +1,6 @@
 // filepath: /src/components/account/AccountModal.jsx
+// Purpose: Account modal to edit basic profile fields and notification prefs. Includes logout.
+
 import { useEffect, useState } from "react";
 import {
   Dialog, Grid, Flex, Button, Text, TextField, Select, Checkbox, Separator, Callout
@@ -10,7 +12,7 @@ import { supabase } from "../../auth/supabaseClient.js"; // fallback for signOut
 
 const UNSPEC = "unspecified";
 
-/* Alphabetical: OECD + major LatAm + hubs */
+// Country, ethnicity, language, and notification vocabularies for selects and checkboxes
 const COUNTRY_OPTIONS = [
   "Argentina","Australia","Austria","Belgium","Bolivia","Brazil","Canada","Chile","China",
   "Colombia","Costa Rica","Cuba","Czech Republic","Denmark","Dominican Republic","Ecuador",
@@ -30,11 +32,14 @@ const ETHNICITY_OPTIONS = [
 const LANG_OPTIONS = ["English"];
 const NOTIFY_KEYS = ["daily_plan","weekly_plan","monthly_plan","promotional"];
 
+// Helpers to normalize nullable fields into select-friendly sentinel and back
 const normLoad = (v) => (v == null || v === "" ? UNSPEC : v);
 const normSave = (v) => (v === UNSPEC ? null : v);
 
 export default function AccountModal({ open, onOpenChange }) {
   const { user, signOut } = useAuth();
+
+  // Local form state for profile fields and notifications
   const [form, setForm] = useState({
     first_name: "", last_name: "",
     sex: UNSPEC, birth_date: "",
@@ -42,9 +47,10 @@ export default function AccountModal({ open, onOpenChange }) {
     ethnicity: UNSPEC, language: "English",
     notifications: []
   });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false); // save in-flight guard
+  const [err, setErr] = useState(""); // error banner text
 
+  // On open, load current profile data and hydrate form
   useEffect(() => {
     if (!open || !user?.id) return;
     (async () => {
@@ -55,7 +61,7 @@ export default function AccountModal({ open, onOpenChange }) {
           first_name: p?.name || "",
           last_name: p?.surname || "",
           sex: normLoad(p?.sex),
-          // ensure YYYY-MM-DD for <input type="date">
+          // Force YYYY-MM-DD for date input
           birth_date: p?.birth_date ? String(p.birth_date).slice(0, 10) : "",
           country_of_origin: normLoad(p?.country_of_origin),
           country_of_residence: normLoad(p?.country_of_residence),
@@ -69,6 +75,7 @@ export default function AccountModal({ open, onOpenChange }) {
     })();
   }, [open, user?.id]);
 
+  // Toggle a single notification key in the form state
   const toggleNotify = (key) => {
     setForm((f) => {
       const has = f.notifications.includes(key);
@@ -76,6 +83,7 @@ export default function AccountModal({ open, onOpenChange }) {
     });
   };
 
+  // Persist edits to backend and close on success
   const onSave = async () => {
     if (!user?.id) return;
     setSaving(true); setErr("");
@@ -99,6 +107,7 @@ export default function AccountModal({ open, onOpenChange }) {
     }
   };
 
+  // Sign out via hook or direct Supabase as fallback, then close
   const onLogout = async () => {
     try {
       if (typeof signOut === "function") await signOut();
@@ -114,6 +123,7 @@ export default function AccountModal({ open, onOpenChange }) {
         maxWidth="640px"
         style={{ position: "relative", paddingTop: 48 }}
       >
+        {/* Top-right logout button */}
         <Button
           color="red"
           variant="solid"
@@ -123,11 +133,13 @@ export default function AccountModal({ open, onOpenChange }) {
           Log out
         </Button>
 
+        {/* Title and subcopy */}
         <Dialog.Title>Account</Dialog.Title>
         <Dialog.Description size="2" color="gray">
           Manage personal details and notifications.
         </Dialog.Description>
 
+        {/* Error banner */}
         {err && (
           <Callout.Root color="red" mt="3" mb="2">
             <Callout.Icon><ExclamationTriangleIcon /></Callout.Icon>
@@ -135,6 +147,7 @@ export default function AccountModal({ open, onOpenChange }) {
           </Callout.Root>
         )}
 
+        {/* Profile fields grid */}
         <Grid columns={{ initial: "1", sm: "2" }} gap="4" mt="4">
           <div>
             <Text size="2">Name</Text>
@@ -223,6 +236,7 @@ export default function AccountModal({ open, onOpenChange }) {
 
         <Separator my="4" />
 
+        {/* Notification preferences */}
         <div>
           <Text size="2" weight="medium">Notification settings</Text>
           <Flex direction="column" gap="2" mt="2">
@@ -238,6 +252,7 @@ export default function AccountModal({ open, onOpenChange }) {
           </Flex>
         </div>
 
+        {/* Actions */}
         <Flex gap="3" mt="4" justify="end">
           <Button variant="soft" onClick={()=>onOpenChange(false)}>Cancel</Button>
           <Button onClick={onSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>

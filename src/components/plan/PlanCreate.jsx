@@ -1,4 +1,6 @@
 // src/components/plan/PlanCreate.jsx
+// High-level: New plan wizard. Validates inputs, inserts plan, then routes to the plan page.
+
 import React, { useState, useEffect } from "react";
 import { Card, Flex, Button, Heading, Text, TextField } from "@radix-ui/themes";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +10,7 @@ const PRESETS = ["Breakfast", "Lunch", "Dinner"];
 const defaultName = (i) => PRESETS[i] || `Meal ${i + 1}`;
 
 export default function PlanCreate({ onCreate }) {
+  // Form state
   const [name, setName] = useState("");
   const [lengthDays, setLengthDays] = useState("14");
   const [mealsPerDay, setMealsPerDay] = useState("3");
@@ -16,10 +19,12 @@ export default function PlanCreate({ onCreate }) {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
+  // Derived: number of meals (bounded)
   const mealsInt = Number.parseInt(mealsPerDay, 10);
   const validMeals =
     Number.isInteger(mealsInt) && mealsInt > 0 ? Math.min(mealsInt, 10) : null;
 
+  // Keep meal names array length in sync with mealsPerDay
   useEffect(() => {
     if (!validMeals) return;
     setMealNames((prev) => {
@@ -29,18 +34,21 @@ export default function PlanCreate({ onCreate }) {
     });
   }, [validMeals]);
 
+  // Create plan in DB, ensure profile exists, navigate to new plan
   const handleCreate = async () => {
     setError("");
 
     const len = Number.parseInt(lengthDays, 10);
     const meals = Number.parseInt(mealsPerDay, 10);
 
+    // Basic validation
     if (!name.trim()) return setError("Name required");
     if (!Number.isInteger(len) || len < 1 || len > 90)
       return setError("Length (days) must be 1–90");
     if (!Number.isInteger(meals) || meals < 1 || meals > 10)
       return setError("Meals/day must be 1–10");
 
+    // Clean meal names
     const trimmedMeals = (mealNames || [])
       .slice(0, meals)
       .map((m) => (m || "").trim());
@@ -49,6 +57,7 @@ export default function PlanCreate({ onCreate }) {
 
     setBusy(true);
     try {
+      // Auth and owner id
       const {
         data: { user },
         error: authErr,
@@ -57,10 +66,12 @@ export default function PlanCreate({ onCreate }) {
       const owner_profile_id = user?.id;
       if (!owner_profile_id) throw new Error("Not authenticated");
 
+      // Ensure profile row
       await supabase
         .from("profiles_v1")
         .upsert({ profile_id: owner_profile_id }, { onConflict: "profile_id" });
 
+      // Insert plan
       const insertRow = {
         owner_profile_id,
         name: name.trim(),
@@ -79,9 +90,11 @@ export default function PlanCreate({ onCreate }) {
         .single();
       if (error) throw error;
 
+      // Notify parent and route to the new plan
       onCreate?.(data);
       navigate(`/plan/${owner_profile_id}/${data.plan_id}`, { replace: true });
 
+      // Reset form to defaults
       setName("");
       setLengthDays("14");
       setMealsPerDay("3");
@@ -93,6 +106,7 @@ export default function PlanCreate({ onCreate }) {
     }
   };
 
+  // Input handlers and clamps
   const onChangeName = (e) => {
     const v = e.target.value.slice(0, 25);
     setName(v);
@@ -111,10 +125,12 @@ export default function PlanCreate({ onCreate }) {
 
   const onBlurTrim = (setter) => (e) => setter(e.target.value.trim());
 
+  // UI hints
   const showNameMax = name.length >= 25;
   const showDaysMax = Number(lengthDays) >= 90;
   const showMealsMax = Number(mealsPerDay) >= 10;
 
+  // Layout
   return (
     <Card>
       <Flex direction="column" p="3" gap="3">
@@ -125,6 +141,7 @@ export default function PlanCreate({ onCreate }) {
           </Text>
         ) : null}
 
+        {/* Name */}
         <Flex direction="column" gap="2">
           <Flex align="center" gap="2">
             <Text size="2">Name</Text>
@@ -143,6 +160,7 @@ export default function PlanCreate({ onCreate }) {
           />
         </Flex>
 
+        {/* Length */}
         <Flex direction="column" gap="2">
           <Flex align="center" gap="2">
             <Text size="2">Length (days)</Text>
@@ -162,6 +180,7 @@ export default function PlanCreate({ onCreate }) {
           />
         </Flex>
 
+        {/* Meals/day */}
         <Flex direction="column" gap="2">
           <Flex align="center" gap="2">
             <Text size="2">Meals per day</Text>
@@ -181,6 +200,7 @@ export default function PlanCreate({ onCreate }) {
           />
         </Flex>
 
+        {/* Meal names list */}
         <Flex direction="column" gap="2">
           <Text size="2">Meal names</Text>
           <Flex direction="column" gap="2">
@@ -230,6 +250,7 @@ export default function PlanCreate({ onCreate }) {
           </Flex>
         </Flex>
 
+        {/* Submit */}
         <Button onClick={handleCreate} disabled={busy}>
           {busy ? "Creating..." : "Create"}
         </Button>

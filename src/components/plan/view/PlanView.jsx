@@ -1,11 +1,15 @@
+// src/components/plan/view/PlanView.jsx
+// High-level: Plan viewer shell. Header with plan selector + edit. Calendar view plus nutrition and micronutrient summaries.
+
 import React, { useMemo } from "react";
 import { Flex, Button, Heading, Card, Text, DropdownMenu } from "@radix-ui/themes";
 import PlanViewCalendar from "./PlanViewCalendar.jsx";
 import PlanViewNutrition from "./PlanViewNutrition.jsx";
 
 export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelectPlan, onCreateNew }) {
-  const [viewMode] = React.useState("week");
+  const [viewMode] = React.useState("week"); // reserved for future layouts
 
+  // Compact vitamin label string from owner goals
   const vitamins = useMemo(() => {
     if (!ownerGoals) return "";
     const map = { micro_vitA: "A", micro_vitC: "C", micro_vitD: "D" };
@@ -15,6 +19,7 @@ export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelec
       .join(" • ");
   }, [ownerGoals]);
 
+  // Compact mineral label string from owner goals
   const minerals = useMemo(() => {
     if (!ownerGoals) return "";
     const map = { micro_calcium: "Ca", micro_iron: "Fe", micro_zinc: "Zn", micro_magnesium: "Mg" };
@@ -26,6 +31,7 @@ export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelec
 
   return (
     <Flex direction="column" gap="4">
+      {/* Header: current plan name + edit and plan switcher */}
       <Card>
         <Flex align="center" justify="between" wrap="wrap" p="3" gap="3">
           <Heading size="6"><u>Current Plan:</u> {plan?.name ?? "—"}</Heading>
@@ -51,8 +57,10 @@ export default function PlanView({ plan, plans = [], ownerGoals, onEdit, onSelec
         </Flex>
       </Card>
 
+      {/* Timeline calendar for the active plan */}
       <PlanViewCalendar plan={plan} viewMode={viewMode} />
 
+      {/* Right rail: energy/macros card + micronutrient badges */}
       <Flex gap="4" direction={{ initial: "column", md: "row" }}>
         <PlanViewNutrition ownerGoals={ownerGoals} />
         <Card style={{ flex: 1 }}>

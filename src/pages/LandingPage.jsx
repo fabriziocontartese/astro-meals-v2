@@ -1,4 +1,6 @@
 // src/pages/LandingPage.jsx
+// High-level: Marketing landing page. Hero + features + call-to-action linking to profile demo and app demo.
+
 import { Link } from "react-router-dom";
 import {
   Box, Button, Container, Flex, Grid, Heading, Text, Separator,
@@ -9,7 +11,7 @@ import { Feature } from "../components/ui/Feature";
 export default function LandingPage() {
   return (
     <>
-      {/* Hero */}
+      {/* Hero: headline and value prop */}
       <Box asChild className="hero-section">
         <section>
           <Container size="4" px="4" py="4">
@@ -24,7 +26,7 @@ export default function LandingPage() {
         </section>
       </Box>
 
-      {/* Features */}
+      {/* Features: four key capabilities */}
       <Box asChild className="features-section">
         <section>
           <Container size="4" px="4" py="4">
@@ -38,16 +40,18 @@ export default function LandingPage() {
         </section>
       </Box>
 
-      {/* Call To Action */}
+      {/* CTA: start flow or view demo */}
       <Box asChild className="cta-section">
         <section>
           <Container size="4" px="4" py="4">
             <Flex direction="column" align="center" gap="3">
               <Heading align="center">Ready to level up your routine?</Heading>
               <Flex gap="3" wrap="wrap" mt="3">
+                {/* Primary action: routes to a demo-filled profile */}
                 <Button size="3" variant="solid" asChild>
                   <Link to="/profile?demo=1">Get Started</Link>
                 </Button>
+                {/* Secondary action: routes to demo page */}
                 <Button size="3" variant="soft" asChild>
                   <Link to="/demo"><EyeOpenIcon /> See Demo</Link>
                 </Button>

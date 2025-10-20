@@ -1,4 +1,6 @@
 // src/components/plan/edit/PlanEditParameters.jsx
+// High-level: Edit plan metadata (name, length, start date, meals/day). Auto-loop start date forward. Persists updates and rebuilds a flat schedule from weekly data.
+
 import React, { useEffect, useRef, useState } from "react";
 import { Card, Flex, Button, TextField, Text } from "@radix-ui/themes";
 import { supabase } from "../../../auth/supabaseClient.js";
@@ -24,6 +26,7 @@ const diffDays = (a, b) => {
   return Math.floor((b0 - a0) / 86400000);
 };
 
+// Build flat day-by-day schedule from weekly structure to simplify reads.
 function buildFlatSchedule(plan) {
   const length = Number(plan?.length_days || 0);
   const meals = plan?.meal_names || ["Breakfast","Lunch","Snack","Dinner"];
@@ -46,6 +49,7 @@ function buildFlatSchedule(plan) {
 }
 
 export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=false }) {
+  // UI state seeded from plan
   const [name, setName] = useState(plan?.name ?? "");
   const [lengthDays, setLengthDays] = useState(String(plan?.length_days ?? 42));
   const [mealsPerDay, setMealsPerDay] = useState(String(plan?.meals_per_day ?? 4));
@@ -104,6 +108,7 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
   const onChangeMeals = (e) => setMealsPerDay(clampOnChange(e.target.value, 10));
   const onBlurTrim = (setter) => (e) => setter(e.target.value.trim());
 
+  // derived ints and UI flags
   const lenInt = Number.parseInt(lengthDays, 10);
   const mealsInt = Number.parseInt(mealsPerDay, 10);
 
@@ -111,6 +116,7 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
   const showDaysMax = Number(lengthDays) >= 90;
   const showMealsMax = Number(mealsPerDay) >= 10;
 
+  // Persist changes to DB. Validates inputs. Recomputes flat schedule from weekly data.
   const persist = async () => {
     setErr("");
     if (!name.trim()) { setErr("Name required"); return null; }
@@ -152,20 +158,24 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
     }
   };
 
+  // Update in place without leaving editor
   const updateAndRefresh = async () => {
     const data = await persist();
     if (!data) return;
     onUpdate?.(data);
   };
+  // Save and exit parent edit mode
   const saveAndExit = async () => {
     const data = await persist();
     if (!data) return;
     onSave?.(data);
   };
 
+  // Layout
   return (
     <Card style={{ width: fullWidth ? "100%" : undefined }}>
       <Flex align="center" justify="between" p="3" wrap="wrap" gap="3">
+        {/* Inputs group */}
         <Flex align="center" gap="5" wrap="wrap" style={{ flex: 1 }}>
           <Flex direction="column" gap="1" style={{ minWidth: 180, flex: "1 1 180px" }}>
             <Flex align="center" gap="2">
@@ -226,6 +236,7 @@ export default function PlanEditParameters({ plan, onUpdate, onSave, fullWidth=f
           </Flex>
         </Flex>
 
+        {/* Actions */}
         <Flex align="center" gap="2" wrap="wrap" onClick={(e)=>e.stopPropagation()}>
           {err ? <Text size="2" color="red">{err}</Text> : null}
           <Button variant="soft" onClick={updateAndRefresh} disabled={busy}>

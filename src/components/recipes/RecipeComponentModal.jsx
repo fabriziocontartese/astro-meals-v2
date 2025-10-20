@@ -1,4 +1,5 @@
 // src/components/recipes/RecipeComponentModal.jsx
+// High-level: Manage "component" recipes. Create/edit simple component recipes built only from ingredients. Lists existing components with edit/delete controls.
 
 import React from "react";
 import { Dialog, Button, Flex, Text, Card, Heading, Separator, Badge } from "@radix-ui/themes";
@@ -54,6 +55,7 @@ export default function RecipeComponentModal({
     setIngOptions([]);
   }
 
+  // Populate ingredient category filters from DB.
   async function loadIngredientCategories() {
     const { data, error } = await supabase
       .from("ingredients_v1")
@@ -66,6 +68,7 @@ export default function RecipeComponentModal({
     setIngCats(Array.from(set).sort().map((name) => ({ id: name, name })));
   }
 
+  // Load existing component recipes for the list panel.
   async function loadComponents() {
     setLoadingComps(true);
     try {
@@ -92,6 +95,7 @@ export default function RecipeComponentModal({
         .select("ingredient_id,name,unit,category")
         .order("name", { ascending: true })
         .limit(50);
+      // Name filter and category filter
       if (q?.trim()?.length >= 2) query = query.ilike("name", `%${q.trim()}%`);
       if (cats?.length) query = query.in("category", cats);
       const { data, error } = await query;
@@ -101,6 +105,7 @@ export default function RecipeComponentModal({
     }
   }, [open]);
 
+  // Debounced search trigger
   React.useEffect(() => {
     if (!open) return;
     if (!ingActive) { setIngOptions([]); return; }
@@ -113,6 +118,7 @@ export default function RecipeComponentModal({
   }
 
   // ---------- ingredient rows ----------
+  // Add selected ingredient to rows, ignore duplicates.
   function addIngredientRow(o) {
     if (!o) return;
     setForm((f) => {
@@ -130,11 +136,13 @@ export default function RecipeComponentModal({
     setIngOptions([]);
   }
 
+  // Update grams for a row.
   function setRowGrams(id, grams) {
     const cleaned = String(grams).replace(/[^\d]/g, "");
     setForm((f) => ({ ...f, ingredients: f.ingredients.map((r) => (r.ingredient_id === id ? { ...r, grams: cleaned } : r)) }));
   }
 
+  // Remove a row.
   function removeRow(id) {
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((r) => r.ingredient_id !== id) }));
   }
@@ -143,6 +151,7 @@ export default function RecipeComponentModal({
   const canSaveCreate = (form.name || "").trim().length > 0 && !saving && !isEditing;
   const canSaveEdit = (form.name || "").trim().length > 0 && !saving && isEditing;
 
+  // Normalize payload for DB.
   function normalizeIngredients(rows) {
     return (rows || []).map((r) => ({
       ingredient_id: r.ingredient_id,
@@ -153,6 +162,7 @@ export default function RecipeComponentModal({
     }));
   }
 
+  // Insert new component recipe for the current user.
   async function saveComponent() {
     if (!userId) { setErr("Sign in to save."); return; }
     setSaving(true); setErr("");
@@ -176,6 +186,7 @@ export default function RecipeComponentModal({
     }
   }
 
+  // Update an existing component recipe.
   async function saveEdits() {
     if (!userId) { setErr("Sign in to save."); return; }
     if (!editingId) return;
@@ -204,6 +215,7 @@ export default function RecipeComponentModal({
     }
   }
 
+  // Delete a component recipe by id.
   async function deleteComponent(id) {
     if (!id) return;
     setSaving(true); setErr("");
@@ -220,6 +232,7 @@ export default function RecipeComponentModal({
     }
   }
 
+  // Load component into the edit form.
   function startEdit(c) {
     setForm({
       name: c?.name || "",
@@ -250,6 +263,7 @@ export default function RecipeComponentModal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="980px" style={{ maxHeight: "85vh", overflow: "auto" }}>
+        {/* Header: mode badge, errors, actions */}
         <Flex justify="between" align="center" mb="2">
           <Dialog.Title>Components</Dialog.Title>
           <Flex gap="2" align="center">
@@ -272,6 +286,7 @@ export default function RecipeComponentModal({
           </Flex>
         </Flex>
 
+        {/* Layout CSS for the two-column grid and lists */}
         <style>{`
           .comp-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
           @media (min-width: 900px){ .comp-grid { grid-template-columns: 1fr 1fr; } }
@@ -285,8 +300,8 @@ export default function RecipeComponentModal({
 
         <div className="comp-grid">
 
-        {/* RIGHT: EXISTING COMPONENTS (HORIZONTAL CARDS + DELETE + EDIT HIGHLIGHT) */}
-        <Card p="3">
+          {/* RIGHT: existing components list with edit/delete controls */}
+          <Card p="3">
             <Heading size="3" mb="2">Existing Components</Heading>
             {loadingComps ? <Text color="gray">Loading…</Text> : null}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -331,11 +346,11 @@ export default function RecipeComponentModal({
             </div>
           </Card>
 
-
-          {/* LEFT: CREATE / EDIT FORM */}
+          {/* LEFT: create/edit form with search and rows */}
           <Card p="3">
             <Heading size="3" mb="2">{isEditing ? "Edit Component" : "Create new Component"}</Heading>
             <Flex direction="column" gap="3">
+              {/* Name input */}
               <div>
                 <Text size="2">Name</Text>
                 <input
@@ -348,7 +363,7 @@ export default function RecipeComponentModal({
               <Separator my="2" />
               <Heading size="2">Ingredients</Heading>
 
-              {/* Category filters (parity with RecipeEditModal) */}
+              {/* Filters */}
               <Flex gap="2" wrap mt="1">
                 {ingCats.map((c) => (
                   <CategoryButton
@@ -363,7 +378,7 @@ export default function RecipeComponentModal({
                 )}
               </Flex>
 
-              {/* Search bar */}
+              {/* Search bar and submit */}
               <Flex gap="2" align="center">
                 <input
                   placeholder="Search ingredients… (min 2 chars or use filters)"
@@ -376,7 +391,7 @@ export default function RecipeComponentModal({
                 </Button>
               </Flex>
 
-              {/* Search results */}
+              {/* Results grid */}
               {ingActive && (
                 <div style={{ maxHeight: 140, overflowY: "auto", paddingRight: 4, marginBottom: 8 }}>
                   <div className="search-grid">
@@ -393,7 +408,7 @@ export default function RecipeComponentModal({
                 </div>
               )}
 
-              {/* Current rows */}
+              {/* Current rows with qty controls */}
               <div>
                 {(form.ingredients || []).map((r) => (
                   <Card key={r.ingredient_id} size="1" style={{ padding: "6px 8px", marginBottom: 6 }}>

@@ -1,11 +1,14 @@
 // src/components/recipes/RecipeDetailsModal.jsx
+// High-level: Read-only recipe viewer. Expands component recipes into base ingredients and lists everything.
 
 import React from "react";
 import { Dialog, Button, Flex, Text, Card, Heading, Separator } from "@radix-ui/themes";
 import { supabase } from "../../auth/supabaseClient.js";
 
+// Placeholder for missing/broken images.
 const PLACEHOLDER = "/storage/v1/object/public/placeholder/placeholder";
 
+// Converts storage keys and non-public URLs into public URLs for display.
 function toPublicUrlIfNeeded(pathOrUrl) {
   if (!pathOrUrl) return "";
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
@@ -22,30 +25,31 @@ function toPublicUrlIfNeeded(pathOrUrl) {
 }
 
 export default function RecipeDetailsModal({
-  open,
-  onOpenChange,
-  recipe,
-  canEdit = false,
-  onEdit,
-  onDelete,
+  open,            // modal open flag
+  onOpenChange,    // modal state handler
+  recipe,          // recipe object to display
+  canEdit = false, // enables Edit/Delete actions
+  onEdit,          // edit handler
+  onDelete,        // delete handler
 }) {
+  // Loaded component recipes that this recipe embeds.
   const [componentDetails, setComponentDetails] = React.useState([]);
 
+  // Categories and raw items from the recipe.
   const cats = Array.isArray(recipe?.categories) ? recipe.categories : [];
   const items = React.useMemo(
     () => (Array.isArray(recipe?.ingredients) ? recipe.ingredients : []),
     [recipe?.ingredients]
   );
 
-  // rows with component_id are embedded components
-  const comps = React.useMemo(() => items.filter((r) => r?.component_id), [items]);
-
-  // base ingredients have ingredient_id and no component_id
+  // Derived splits: component rows vs base ingredient rows.
+  const comps = React.useMemo(() => items.filter((r) => r?.component_id), [items]); // embedded components
   const basics = React.useMemo(
-    () => items.filter((r) => !r?.component_id && r?.ingredient_id),
+    () => items.filter((r) => !r?.component_id && r?.ingredient_id),            // base ingredients
     [items]
   );
 
+  // Fetch full details for embedded component recipes when modal opens.
   React.useEffect(() => {
     if (!open || comps.length === 0) {
       setComponentDetails([]);
@@ -62,6 +66,7 @@ export default function RecipeDetailsModal({
     })();
   }, [open, recipe?.recipe_id, comps]);
 
+  // Flattens each component's ingredients into base ingredients, scaled by quantity/servings.
   const flatComponentIngredients = React.useMemo(() => {
     if (!componentDetails?.length) return [];
     return componentDetails.flatMap((c) => {
@@ -80,6 +85,7 @@ export default function RecipeDetailsModal({
     });
   }, [componentDetails, comps]);
 
+  // Combined list: base ingredients + expanded component ingredients.
   const allIngredients = React.useMemo(
     () => [
       ...basics.map((r) => ({
@@ -97,19 +103,22 @@ export default function RecipeDetailsModal({
 
   if (!recipe) return null;
 
+  // Main image with public URL fallback.
   const mainImage = toPublicUrlIfNeeded(recipe.image_url) || PLACEHOLDER;
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="760px">
-        {/* Accessibility: provide required Title and Description */}
+        {/* Accessibility: title and short description */}
         <Dialog.Title>{recipe.name || "Recipe details"}</Dialog.Title>
         <Dialog.Description>Ingredients, components, and metadata</Dialog.Description>
 
         <Card mt="3" p="3">
           <Flex direction="column" gap="3">
+            {/* Header */}
             <Heading size="4" style={{ margin: 0 }}>{recipe.name}</Heading>
 
+            {/* Image */}
             {mainImage ? (
               <img
                 src={mainImage}
@@ -119,6 +128,7 @@ export default function RecipeDetailsModal({
               />
             ) : null}
 
+            {/* Categories */}
             {cats.length ? (
               <div>
                 <Text size="2" color="gray">Categories</Text>
@@ -128,6 +138,7 @@ export default function RecipeDetailsModal({
 
             <Separator my="2" />
 
+            {/* Flat ingredient table */}
             <div>
               <Heading size="3" mb="1">All ingredients</Heading>
               <div style={{ overflowX: "auto" }}>
@@ -159,6 +170,7 @@ export default function RecipeDetailsModal({
 
               <Separator my="3" />
 
+              {/* Cards for each included component recipe */}
               {componentDetails.length > 0 && (
                 <div>
                   <Heading size="3" mb="1">Included components</Heading>
@@ -197,6 +209,7 @@ export default function RecipeDetailsModal({
               )}
             </div>
 
+            {/* Footer actions: visibility + edit/delete + close */}
             <Flex gap="2" mt="2" justify="between" align="center">
               <Text size="2" color="gray">{recipe.is_public ? "Public" : "Private"}</Text>
               <Flex gap="2">

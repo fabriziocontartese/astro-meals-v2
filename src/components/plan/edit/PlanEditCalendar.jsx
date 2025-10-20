@@ -1,4 +1,6 @@
 // src/components/plan/edit/PlanEditCalendar.jsx
+// High-level: Visual weekly grid editor. Assign recipes to day/meal slots, rename meal columns, and persist changes. Includes inline picker and scroll indicator.
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Flex, Text, Dialog, ScrollArea } from "@radix-ui/themes";
 import { supabase } from "../../../auth/supabaseClient.js"
@@ -12,22 +14,26 @@ const MEAL_COL_W = 140;
 const DOT = 10;
 
 export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
+  // derive plan shape
   const meals = plan?.meal_names || ["Breakfast", "Lunch", "Snack", "Dinner"];
   const lengthDays = Math.max(1, Number(plan?.length_days || 28));
   const weeksObj = (plan?.plan_recipes && plan.plan_recipes.weeks) || {};
 
+  // horizontal scroll state
   const viewportRef = useRef(null);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [vpW, setVpW] = useState(0);
 
+  // modal recipe picker fallback (when no quick-select)
   const [picker, setPicker] = useState({ open: false, meal: null, week0: 0, dayName: null });
 
-  // rename state
+  // inline meal-name rename state
   const [editingIdx, setEditingIdx] = useState(null);
   const [draftName, setDraftName] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameErr, setRenameErr] = useState("");
 
+  // computed metadata for each day cell
   const dayMeta = useMemo(
     () =>
       Array.from({ length: lengthDays }, (_, i) => {
@@ -39,9 +45,11 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     [lengthDays]
   );
 
+  // read item at a slot
   const getItem = (week0, dayName, mealType) =>
     (weeksObj[week0]?.[dayName] || []).find((x) => x.type === mealType) || null;
 
+  // assign or clear a slot, then push update up
   const assign = (week0, dayName, mealType, recipeOrNull) => {
     const curWeek = weeksObj[week0] || {};
     const kept = (curWeek[dayName] || []).filter((m) => m.type !== mealType);
@@ -53,6 +61,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     onUpdate?.({ ...plan, plan_recipes: { ...(plan.plan_recipes || {}), weeks: nextWeeks } });
   };
 
+  // click behavior: quick assign, clear, or open picker
   const handleCellClick = (meal, week0, dayName) => {
     const existing = getItem(week0, dayName, meal);
     if (existing && !selectedRecipe) { assign(week0, dayName, meal, null); return; }
@@ -60,7 +69,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     setPicker({ open: true, meal, week0, dayName });
   };
 
-  // rename helpers
+  // --- meal-name rename flow: start -> migrate schema -> persist
   const beginRename = (idx) => {
     setRenameErr("");
     setEditingIdx(idx);
@@ -73,6 +82,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     setEditingIdx(null);
     if (!newName || newName === oldName) { setDraftName(""); return; }
 
+    // local migrate: update meal_names and replace type on all matching slots
     const nextMealNames = meals.slice();
     nextMealNames[editingIdx] = newName;
 
@@ -86,6 +96,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     }
     const nextPlan = { ...plan, meal_names: nextMealNames, plan_recipes: { ...(plan.plan_recipes || {}), weeks: migratedWeeks } };
 
+    // persist rename + migrated weeks
     setRenameBusy(true);
     try {
       const { data, error } = await supabase
@@ -104,7 +115,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     }
   };
 
-  // scroll sync and size
+  // scroll/resize observers to drive mini viewport indicator
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -116,11 +127,13 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
     return () => { vp.removeEventListener("scroll", onScroll); ro.disconnect(); };
   }, []);
 
+  // derived sizes for highlight window
   const totalContentW = lengthDays * COL_W;
   const maxScroll = Math.max(1, totalContentW - vpW);
   const highlightLeftPx = (scrollLeft / maxScroll) * Math.max(0, vpW - (vpW * vpW) / totalContentW);
   const highlightW = totalContentW <= vpW ? vpW : (vpW / totalContentW) * vpW;
 
+  // day completeness for dot rail coloring
   const isDayComplete = (dayIdx1) => {
     const meta = dayMeta[dayIdx1 - 1];
     const placed = weeksObj[meta.week0]?.[meta.dayName] || [];
@@ -142,7 +155,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
           boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
         }}
       >
-        {/* sticky meal names */}
+        {/* sticky meal names + rename-on-click */}
         <div>
           <div
             style={{
@@ -215,10 +228,10 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
           ))}
         </div>
 
-        {/* scrollable day grid — hide native scrollbar */}
+        {/* scrollable day grid; cells handle assign/clear/open picker */}
         <ScrollArea ref={viewportRef} type="auto" scrollbars="horizontal" >
           <div style={{ minWidth: totalContentW }}>
-            {/* header */}
+            {/* header: day index + weekday */}
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${lengthDays}, ${COL_W}px)` }}>
               {dayMeta.map(({ dayIdx1, dayName }) => (
                 <div
@@ -240,7 +253,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
               ))}
             </div>
 
-            {/* rows */}
+            {/* per-meal rows of clickable cells */}
             {meals.map((meal) => (
               <div
                 key={`row-${meal}`}
@@ -308,10 +321,10 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
         </ScrollArea>
       </div>
 
-      {/* DOT SCROLL BAR — fills component width and mirrors viewport */}
+      {/* DOT SCROLL BAR — progress rail with viewport highlight */}
       <div style={{ position: "relative", marginTop: 12 }}>
         <div style={{ width: vpW, marginLeft: MEAL_COL_W, position: "relative" }}>
-          {/* rail of dots spans full width */}
+          {/* day dots */}
           <div
             style={{
               width: "100%",
@@ -338,7 +351,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
             })}
           </div>
 
-          {/* highlight equal to visible part */}
+          {/* viewport window overlay */}
           <div
             style={{
               position: "absolute",
@@ -355,13 +368,14 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
         </div>
       </div>
 
+      {/* errors */}
       {renameErr ? (
         <div style={{ marginTop: 6 }}>
           <Text size="2" color="red">{renameErr}</Text>
         </div>
       ) : null}
 
-      {/* inline picker */}
+      {/* inline recipe picker modal */}
       <Dialog.Root open={picker.open} onOpenChange={(o) => setPicker((p) => ({ ...p, open: o }))}>
         <Dialog.Content maxWidth="520px" aria-describedby={undefined}>
           <Dialog.Title>Select recipe</Dialog.Title>
@@ -377,6 +391,7 @@ export default function PlanEditCalendar({ plan, onUpdate, selectedRecipe }) {
   );
 }
 
+// Compact list fed by global recipe cache; used in modal picker.
 function MiniRecipeList({ onPick }) {
   const list = Array.isArray(window.__recipes) ? window.__recipes : [];
   return (

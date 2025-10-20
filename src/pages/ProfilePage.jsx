@@ -1,5 +1,7 @@
 // src/pages/ProfilePage.jsx
 
+// High-level: Profile report page. Loads profile/goals/energy, derives nutrition targets, and lets user edit basic inputs.
+
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../auth/hooks/useAuth";
 import { fetchUserEnergyRow, upsertUserMetrics } from "../api/goals";
@@ -23,7 +25,11 @@ import SectionCard from "../components/ui/SectionCard.jsx";
 
 export default function ProfilePage() {
   const { user } = useAuth();
+
+  // Core data bundle: profile rows, goal rows, and cached energy computation.
   const [rows, setRows] = useState({ profile: null, goals: null, energy: null });
+
+  // UI state: loading, edit mode, form values, save state, and last save info.
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
@@ -37,6 +43,7 @@ export default function ProfilePage() {
   const [error, setError] = useState(null);
   const [lastSaveInfo, setLastSaveInfo] = useState(null);
 
+  // Initial load: fetch profile inputs and energy row for the signed-in user.
   useEffect(() => {
     if (!user?.id) return;
     let mounted = true;
@@ -60,12 +67,14 @@ export default function ProfilePage() {
     return () => { mounted = false; };
   }, [user?.id]);
 
+  // Derived summary: computed age, energy, macro/micro targets, names for UI.
   const summary = deriveProfileSummary({
     profileRow: rows.profile ?? undefined,
     goalsRow: rows.goals ?? undefined,
     energyRow: rows.energy ?? undefined,
   });
 
+  // Readable fields for display and form prefill.
   const sex = rows.profile?.sex ?? null;
   const birth_date = rows.profile?.birth_date ?? "";
   const age = summary?.age ?? (birth_date ? computeAgeFromDOB(birth_date) : null);
@@ -76,6 +85,7 @@ export default function ProfilePage() {
   const storedGoalText = rows.goals?.weight_goal ?? "maintain";
   const inferredLevel = storedGoalText === "lose" ? 2 : storedGoalText === "gain" ? 4 : 3;
 
+  // When entering edit mode or when data arrives, pre-populate the form.
   useEffect(() => {
     if (!editing && (rows.profile || rows.goals)) {
       setForm({
@@ -89,7 +99,7 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows.profile, rows.goals, editing]);
 
-
+  // Save handler: validate/normalize, upsert metrics, refresh energy, exit edit mode.
   async function handleSave() {
     if (!user?.id) return;
     setSaving(true);
@@ -140,6 +150,7 @@ export default function ProfilePage() {
     }
   }
 
+  // Presentation objects: personal info and daily energy for read mode.
   const personalInfo = {
     Sex: sex ? sex.charAt(0).toUpperCase() + sex.slice(1) : "Complete profile",
     Age: age != null ? `${age} yrs` : "Complete profile",
@@ -158,6 +169,7 @@ export default function ProfilePage() {
     Water: summary?.water_ml != null ? `${(summary.water_ml / 1000).toFixed(1)} L` : "—",
   };
 
+  // Macros and micros: grouped structure for display cards.
   const macrosGrouped = summary?.macros
     ? {
         Protein: { total: `${summary.macros.protein_g ?? "—"} g`, subs: [] },
@@ -203,6 +215,7 @@ export default function ProfilePage() {
       ]
     : null;
 
+  // Layout: header with edit toggle, error callout, three-column grid, and micronutrients section.
   return (
     <Container size="3" px="4" py="6" style={{ width: "100%", maxWidth: "1120px", marginInline: "auto" }}>
       <Flex justify="between" align="center" mb="3">
@@ -230,6 +243,7 @@ export default function ProfilePage() {
         </Callout.Root>
       )}
 
+      {/* Stats grid: body metrics editor/view, daily energy, and macro targets */}
       <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4">
         <SectionCard title="Body Metrics">
           {!editing ? (
@@ -239,6 +253,7 @@ export default function ProfilePage() {
               ))}
             </div>
           ) : (
+            // Simple form: height, weight, job type, activity, and goal level.
             <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
               <label style={{ display: "block", fontSize: 13, marginBottom: 8 }}>
                 Height (cm)
@@ -355,6 +370,8 @@ export default function ProfilePage() {
           )}
         </SectionCard>
       </Grid>
+
+      {/* Micronutrients list split into two responsive columns */}
       <br></br>
       <SectionCard title="Micronutrients" right={<Badge variant="soft" color="gray">From goals_v1</Badge>}>
         {!micros ? (
@@ -368,6 +385,7 @@ export default function ProfilePage() {
         )}
       </SectionCard>
 
+      {/* Footer status messages */}
       {loading && (<Flex mt="3" align="center" gap="2"><InfoCircledIcon /> <Text color="gray">Loading…</Text></Flex>)}
       {!loading && !rows.profile && !rows.goals && (<Text color="gray" mt="3">No metrics available — complete your measurements to generate a full report.</Text>)}
     </Container>

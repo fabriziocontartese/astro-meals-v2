@@ -1,4 +1,6 @@
 // src/components/plan/edit/PlanRecipePicker.jsx
+// High-level: Side panel to search/filter recipes and select one for scheduling. Mirrors Recipes page filters in compact form.
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, Flex, Text, ScrollArea, SegmentedControl, Button } from "@radix-ui/themes";
 import { supabase } from "../../../auth/supabaseClient.js";
@@ -8,12 +10,14 @@ import { fetchRecipes, fetchCategories } from "../../../api/recipes.js";
 function InlineSearchBar({ search, onSearchChange, visibility, onVisibilityChange }) {
   return (
     <Flex gap="2" align="center" wrap="wrap">
+      {/* Text search by recipe name */}
       <input
         placeholder="Search name…"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         style={{ flex: 1, minWidth: 140, padding: 8 }}
       />
+      {/* Visibility toggle: all vs private-only */}
       <Flex align="center" gap="2">
         <SegmentedControl.Root value={visibility} onValueChange={onVisibilityChange}>
           <SegmentedControl.Item value="all">All</SegmentedControl.Item>
@@ -28,9 +32,11 @@ function InlineSearchBar({ search, onSearchChange, visibility, onVisibilityChang
 export default function PlanRecipePicker({ selected, onSelect }) {
   const rootRef = useRef(null);
 
+  // Data lists
   const [recipes, setRecipes] = useState([]);
   const [categories, setCategories] = useState([]);
 
+  // Filters
   const [search, setSearch] = useState("");
   const [selectedCats, setSelectedCats] = useState([]);
   const [visibility, setVisibility] = useState("all"); // "private" | "all"
@@ -72,8 +78,10 @@ export default function PlanRecipePicker({ selected, onSelect }) {
     return () => document.removeEventListener("click", onDocClick);
   }, [onSelect]);
 
+  // Memo passthrough (placeholder for more transforms)
   const filtered = useMemo(() => recipes, [recipes]);
 
+  // Toggle a category filter chip
   const toggleCategory = useCallback((name) => {
     setSelectedCats((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   }, []);
@@ -83,6 +91,7 @@ export default function PlanRecipePicker({ selected, onSelect }) {
       <Flex direction="column" p="3" gap="3">
         <Text weight="bold">Recipes</Text>
 
+        {/* Search + visibility */}
         <InlineSearchBar
           search={search}
           onSearchChange={setSearch}
@@ -92,6 +101,7 @@ export default function PlanRecipePicker({ selected, onSelect }) {
 
         {/* Category filters like Recipes page */}
         <ScrollArea type="auto" scrollbars="vertical" style={{ maxHeight: 96 }}>
+        {/* Spacer row; left here to keep layout consistent */}
         <Flex align="center" justify="between" mt="0">
           {selectedCats.length > 0}
         </Flex>
@@ -122,6 +132,7 @@ export default function PlanRecipePicker({ selected, onSelect }) {
           </Flex>
         </ScrollArea>
 
+        {/* Results list with select/deselect behavior */}
         <ScrollArea style={{ height: 420, marginTop: 6 }}>
           <Flex direction="column" gap="2">
             {filtered.map((r) => (

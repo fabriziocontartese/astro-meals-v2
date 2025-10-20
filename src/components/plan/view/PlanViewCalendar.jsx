@@ -1,4 +1,7 @@
 // src/components/plan/view/PlanViewCalendar.jsx
+// High-level: Read-only calendar timeline for a plan. Horizontally scrollable days with meal rows.
+// Auto-rolls start date forward when a cycle ends. Supports "flat" or "weeks" plan formats.
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Flex, Text, Card, ScrollArea } from "@radix-ui/themes";
 import { supabase } from "../../../auth/supabaseClient.js";
@@ -30,14 +33,15 @@ function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); retu
 function diffDays(a, b) { return Math.floor((parseISODate(b) - parseISODate(a)) / 86400000); }
 
 export default function PlanViewCalendar({ plan, onPatched }) {
+  // Inputs and mode
   const meals = plan?.meal_names || ["Breakfast", "Lunch", "Snack", "Dinner"];
   const useFlat = !!plan?.plan_recipes?.flat?.days;
   const lengthDays = Math.max(1, Number(plan?.plan_recipes?.flat?.length_days || plan?.length_days || 0));
 
-  // local start date with auto-loop
+  // Local start date; initializes from plan objective, else today
   const [startISO, setStartISO] = useState(plan?.objective?.start_date || toISO(new Date()));
 
-  // Auto-loop: if plan ended, roll start_date forward so "new start" is today (or the next cycle)
+  // Auto-loop: when today is past the cycle, shift start_date forward and persist
   useEffect(() => {
     const len = Number(lengthDays || 0);
     if (!len || !plan?.plan_id) return;
@@ -51,10 +55,10 @@ export default function PlanViewCalendar({ plan, onPatched }) {
     const newStart = addDays(start, cycles * len); // day after last cycle end
     const iso = toISO(newStart);
 
-    // update local immediately
+    // Update local immediately
     setStartISO(iso);
 
-    // persist in background
+    // Persist silently
     (async () => {
       try {
         const nextObjective = { ...(plan?.objective || {}), start_date: iso };
@@ -67,13 +71,13 @@ export default function PlanViewCalendar({ plan, onPatched }) {
         if (error) throw error;
         onPatched?.(data || { ...plan, objective: nextObjective });
       } catch {
-        // silent; UI still uses local startISO
+        // ignore
       }
     })();
-    // run once per mount or plan change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.plan_id, plan?.objective?.start_date, lengthDays]);
 
+  // Derived day metadata and "today" index within the cycle
   const startDate = parseISODate(startISO);
   const todayIdx1 = (() => {
     const d = diffDays(startDate, new Date()) + 1;
@@ -95,6 +99,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
     [lengthDays, startDate]
   );
 
+  // Horizontal scroll management and viewport sizing
   const viewportRef = useRef(null);
   const [vpW, setVpW] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -110,7 +115,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
     return () => { vp.removeEventListener("scroll", onScroll); ro.disconnect(); };
   }, []);
 
-  // center-left on current day
+  // On mount or size change: center current day in view
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp || !todayIdx1) return;
@@ -118,11 +123,13 @@ export default function PlanViewCalendar({ plan, onPatched }) {
     vp.scrollLeft = Math.max(0, left);
   }, [todayIdx1, vpW]);
 
+  // Mini-map highlight math
   const totalContentW = lengthDays * COL_W;
   const maxScroll = Math.max(1, totalContentW - vpW);
   const highlightLeftPx = (scrollLeft / maxScroll) * Math.max(0, vpW - (vpW * vpW) / totalContentW);
   const highlightW = totalContentW <= vpW ? vpW : (vpW / totalContentW) * vpW;
 
+  // Accessor for a day's meal item across flat and weekly schemas
   const getItem = (dayIdx1, mealType) => {
     if (useFlat) {
       const flatDay = plan?.plan_recipes?.flat?.days?.[String(dayIdx1)] || {};
@@ -137,6 +144,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
     return arr.find((x) => x.type === mealType) || null;
   };
 
+  // Jump to a day when clicking its dot
   const scrollToDay = (d) => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -146,6 +154,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
 
   return (
     <Card>
+      {/* Timeline grid: one column per day with meal rows */}
       <div style={{ padding: 8, background: "white" }}>
         <ScrollArea ref={viewportRef} type="auto" scrollbars="horizontal">
           <div
@@ -160,7 +169,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
               const isToday = todayIdx1 === dayIdx1;
               return (
                 <div key={`day-${dayIdx1}`} style={{ padding: "6px 8px" }}>
-                  {/* Day header: minimal. Only green ring on current. */}
+                  {/* Day header with current-day ring */}
                   <div
                     style={{
                       textAlign: "center",
@@ -176,7 +185,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
                     <div style={{ fontSize: 12, color: isToday ? "var(--green-11)" : "var(--gray-11)" }}>{headerBottom}</div>
                   </div>
 
-                  {/* Meals: no boxes, just rows with a very light divider */}
+                  {/* Meal rows with small image or placeholder */}
                   <div style={{ display: "flex", flexDirection: "column", marginTop: 6 }}>
                     {meals.map((meal, idx) => {
                       const item = getItem(dayIdx1, meal);
@@ -228,7 +237,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
         </ScrollArea>
       </div>
 
-      {/* Minimal navigation: dots + viewport window */}
+      {/* Pagination dots + viewport window indicator */}
       <div style={{ position: "relative", marginTop: 10, padding: "0 8px" }}>
         <Flex align="center" gap="8px">
           <div style={{ width: "100%", position: "relative" }}>
@@ -269,6 +278,7 @@ export default function PlanViewCalendar({ plan, onPatched }) {
   );
 }
 
+// Mini "window" that mirrors the visible slice of the horizontal grid
 function ViewportHighlight({ vpW, totalContentW, leftPx, widthPx }) {
   if (!vpW || !totalContentW) return null;
   return (

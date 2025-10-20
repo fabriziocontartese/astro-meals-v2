@@ -1,16 +1,21 @@
 // src/components/plan/edit/PlanEditNutrition.jsx
+// High-level: Aggregates a plan's scheduled meals into daily nutrition,
+// compares against profile-derived targets, and renders compact status rows.
+
 import React, { useMemo } from "react";
 import { Card, Text, Flex, Grid, Badge } from "@radix-ui/themes";
 import { CheckCircledIcon, ArrowUpIcon, ArrowDownIcon } from "@radix-ui/react-icons";
 import { deriveProfileSummary } from "../../../utils/profileFormulas";
 
 // ---------- helpers ----------
+// Relative deviation V vs T; null if target invalid.
 const ratio = (v, t) => {
   const V = Number(v) || 0;
   const T = Number(t) || 0;
   if (T <= 0) return null;
   return (V - T) / T;
 };
+// Icon selection around ±5% band.
 const iconFor = (v, t) => {
   const r = ratio(v, t);
   if (r == null) return null;
@@ -18,14 +23,17 @@ const iconFor = (v, t) => {
   if (r > 0.05) return <ArrowUpIcon aria-label="above target" />;
   return <ArrowDownIcon aria-label="below target" />;
 };
+// Safe numeric pretty-print with unit.
 const fmt = (v, u = "") => (v == null || Number.isNaN(Number(v)) ? "—" : `${Math.round(Number(v))}${u}`);
 
+// Pull preloaded nutrition from global list if a meal row lacks inline nutrition.
 function getRecipeNutrition(recipe_id) {
   const list = Array.isArray(window.__recipes) ? window.__recipes : [];
   const r = list.find((x) => String(x.recipe_id) === String(recipe_id));
   return r?.nutrition || r?.macros || null;
 }
 
+// Sum nutrition across all scheduled meals (weeks schema). Returns totals for full plan.
 function aggregatePlan(plan) {
   const weeks = plan?.plan_recipes?.weeks || {};
   const acc = {
@@ -44,9 +52,11 @@ function aggregatePlan(plan) {
       const n = m?.nutrition || getRecipeNutrition(m?.recipe_id);
       if (!n) continue;
 
+      // Energy + water
       acc.kcal += Number(n.kcal || 0);
       acc.water_ml += Number(n.water_ml || 0);
 
+      // Macros (accepts multiple field name variants)
       acc.protein_g += Number(n.protein_g ?? n.macro_protein_total ?? 0);
 
       acc.carbs_g += Number(n.carbs_g ?? n.macro_carb_total ?? 0);
@@ -61,6 +71,7 @@ function aggregatePlan(plan) {
       acc.fat_poly_g += Number(n.fat_poly_g ?? n.macro_fat_polyunsaturated ?? 0);
       acc.fat_trans_g += Number(n.fat_trans_g ?? n.macro_fat_trans ?? 0);
 
+      // Vitamins
       acc.vitA_mcg += Number(n.vitA_mcg ?? n.micro_vitA ?? 0);
       acc.B1_mg += Number(n.B1_mg ?? n.micro_vitB1 ?? 0);
       acc.B2_mg += Number(n.B2_mg ?? n.micro_vitB2 ?? 0);
@@ -74,6 +85,7 @@ function aggregatePlan(plan) {
       acc.vitE_mg += Number(n.vitE_mg ?? n.micro_vitE ?? 0);
       acc.vitK_mcg += Number(n.vitK_mcg ?? n.micro_vitK ?? 0);
 
+      // Minerals
       acc.calcium_mg += Number(n.calcium_mg ?? n.micro_calcium ?? 0);
       acc.copper_mg += Number(n.copper_mg ?? n.micro_copper ?? 0);
       acc.iron_mg += Number(n.iron_mg ?? n.micro_iron ?? 0);
@@ -89,6 +101,7 @@ function aggregatePlan(plan) {
   return acc;
 }
 
+// Row: one metric vs target with status icon.
 function Row({ label, value, target, unit }) {
   const icon = iconFor(value, target);
   return (
@@ -104,8 +117,10 @@ function Row({ label, value, target, unit }) {
 
 // ---------- component ----------
 export default function PlanEditNutrition({ plan, profileSummary }) {
+  // Normalize to per-day by plan length.
   const days = Math.max(1, Number(plan?.length_days || 1));
 
+  // Profile targets: prefer prop, else derive from globals if present.
   const summary = useMemo(() => {
     if (profileSummary) return profileSummary;
     try {
@@ -118,11 +133,12 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
         });
       }
     } catch {
-      // none
+      // ignore
     }
     return window.__profileSummary || null;
   }, [profileSummary]);
 
+  // Plan totals and per-day average.
   const totals = useMemo(() => aggregatePlan(plan), [plan]);
   const perDay = useMemo(() => {
     const d = days || 1;
@@ -131,7 +147,7 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
     return out;
   }, [totals, days]);
 
-  // targets
+  // Targets and derived energy split.
   const bmr = summary?.bmr_kcal ?? null;
   const tdee = summary?.tdee_kcal ?? null;
   const kcalTarget = summary?.recommended_kcal ?? tdee ?? null;
@@ -142,12 +158,13 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
 
   return (
     <Card variant="surface" style={{ padding: 12 }}>
+      {/* Header */}
       <Flex justify="between" align="center" mb="1">
         <Text size="3" weight="medium">Plan Nutrition Tracker</Text>
         <Badge variant="soft" color="gray">Per-day</Badge>
       </Flex>
 
-      {/* 3 columns: Energy | Macros | Vitamins & Minerals */}
+      {/* 3 columns: Energy | Macros | Micros */}
       <Grid columns={{ initial: "1", md: "3" }} gap="3" align="start">
         {/* ENERGY */}
         <Card variant="ghost" style={{ padding: 10 }}>
@@ -160,7 +177,7 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
           </div>
         </Card>
 
-        {/* MACROS (incl. water) */}
+        {/* MACROS */}
         <Card variant="ghost" style={{ padding: 10 }}>
           <Text size="2" color="gray">Macros</Text>
           <div style={{ height: 6 }} />
@@ -184,15 +201,16 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
           </div>
         </Card>
 
-        {/* VITAMINS & MINERALS (2 inner columns) */}
+        {/* MICROS */}
         <Card variant="ghost" style={{ padding: 10 }}>
           <Flex justify="between" align="center" mb="1">
             <Text size="2" color="gray">Vitamins & Minerals</Text>
             <Badge variant="soft" color="gray">goals_v1</Badge>
           </Flex>
 
+          {/* Two responsive columns */}
           <Grid columns={{ initial: "1", sm: "2" }} gap="2">
-            {/* Left column */}
+            {/* Left list */}
             <div style={{ display: "grid", gap: 6 }}>
               <Row label="Vit A" value={perDay.vitA_mcg} target={summary?.micros?.vitA_mcg} unit=" μg" />
               <Row label="B1" value={perDay.B1_mg} target={summary?.micros?.B1_mg} unit=" mg" />
@@ -204,7 +222,7 @@ export default function PlanEditNutrition({ plan, profileSummary }) {
               <Row label="B12" value={perDay.B12_mcg} target={summary?.micros?.B12_mcg} unit=" μg" />
             </div>
 
-            {/* Right column */}
+            {/* Right list */}
             <div style={{ display: "grid", gap: 6 }}>
               <Row label="Vit C" value={perDay.vitC_mg} target={summary?.micros?.vitC_mg} unit=" mg" />
               <Row label="Vit D" value={perDay.vitD_mcg} target={summary?.micros?.vitD_mcg} unit=" μg" />

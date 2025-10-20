@@ -1,4 +1,5 @@
 // src/components/recipes/RecipeEditModal.jsx
+// High-level: Recipe create/edit modal. Manages name, categories, image, and adding items (ingredients or component recipes).
 
 import React from "react";
 import { Dialog, Button, Flex, Text, Card, Heading, SegmentedControl } from "@radix-ui/themes";
@@ -8,6 +9,7 @@ import CategoryButton from "../ui/CategoryButton.jsx";
 const STORAGE_BUCKET = "recipe-images";
 const PRESET_CATS = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
+// Converts a storage key or non-public URL into a public URL for preview.
 function toPublicUrlIfNeeded(pathOrUrl) {
   if (!pathOrUrl) return "";
   if (!/^https?:\/\//i.test(pathOrUrl)) {
@@ -22,11 +24,12 @@ function toPublicUrlIfNeeded(pathOrUrl) {
       return u.toString();
     }
   } catch {
-    // none
+    // ignore
   }
   return pathOrUrl;
 }
 
+// Dedupes and normalizes category names.
 function uniqNames(arr) {
   const seen = new Set();
   const out = [];
@@ -48,6 +51,7 @@ export default function RecipeModal({
   err = "",
   onSave,
 }) {
+  // Form state and basic refs.
   const empty = React.useRef({
     name: "",
     categories: [],
@@ -59,22 +63,27 @@ export default function RecipeModal({
   const [form, setForm] = React.useState(initial ?? empty.current);
   const [previewUrl, setPreviewUrl] = React.useState("");
 
+  // Local category list management (server + presets + current).
   const [localCats, setLocalCats] = React.useState([]);
   const [showNewCat, setShowNewCat] = React.useState(false);
   const [newCat, setNewCat] = React.useState("");
 
+  // Input tab: choose between Ingredients and Components search flows.
   const [mode, setMode] = React.useState("Ingredients"); // Ingredients | Components
 
+  // Ingredient search state: query, filter chips, results, loading.
   const [ingQuery, setIngQuery] = React.useState("");
   const [ingOptions, setIngOptions] = React.useState([]);
   const [ingCats, setIngCats] = React.useState([]);
   const [selectedIngCats, setSelectedIngCats] = React.useState([]);
   const [ingLoading, setIngLoading] = React.useState(false);
 
+  // Component search state: query, results, loading.
   const [compQuery, setCompQuery] = React.useState("");
   const [compOptions, setCompOptions] = React.useState([]);
   const [compLoading, setCompLoading] = React.useState(false);
 
+  // Reset modal state when opening or when inputs change.
   React.useEffect(() => {
     if (!open) return;
     const f = initial ? { ...initial } : { ...empty.current };
@@ -93,6 +102,7 @@ export default function RecipeModal({
     setCompOptions([]);
   }, [open, initial, categories]);
 
+  // Load ingredient categories for filter chips.
   React.useEffect(() => {
     if (!open) return;
     (async () => {
@@ -108,9 +118,11 @@ export default function RecipeModal({
     })();
   }, [open]);
 
+  // Search toggles become active with minimal input.
   const ingActive = ingQuery.trim().length >= 2 || selectedIngCats.length > 0;
   const compActive = compQuery.trim().length >= 1;
 
+  // Ingredient search (debounced): query by name and/or category filters.
   const runIngredientSearch = React.useCallback(async (q, cats) => {
     if (!open) return;
     setIngLoading(true);
@@ -129,6 +141,7 @@ export default function RecipeModal({
     }
   }, [open]);
 
+  // Component search (debounced): only recipes tagged with "Component".
   const runComponentSearch = React.useCallback(async (q) => {
     if (!open) return;
     setCompLoading(true);
@@ -147,6 +160,7 @@ export default function RecipeModal({
     }
   }, [open]);
 
+  // Debounce ingredient search input.
   React.useEffect(() => {
     if (!open) return;
     if (!ingActive) { setIngOptions([]); return; }
@@ -154,6 +168,7 @@ export default function RecipeModal({
     return () => clearTimeout(t);
   }, [open, ingActive, ingQuery, selectedIngCats, runIngredientSearch]);
 
+  // Debounce component search input.
   React.useEffect(() => {
     if (!open) return;
     if (!compActive) { setCompOptions([]); return; }
@@ -161,6 +176,7 @@ export default function RecipeModal({
     return () => clearTimeout(t);
   }, [open, compActive, compQuery, runComponentSearch]);
 
+  // Category toggle for the recipe itself.
   function toggleCategory(name) {
     const n = String(name).trim();
     if (!n) return;
@@ -172,6 +188,7 @@ export default function RecipeModal({
       return { ...f, categories: uniqNames(next) };
     });
   }
+  // Adds a new custom category and applies it.
   function addNewCategory() {
     const n = newCat.trim();
     if (!n) return;
@@ -181,10 +198,12 @@ export default function RecipeModal({
     setShowNewCat(false);
   }
 
+  // Ingredient category filter toggle for search chips.
   function toggleIngCat(name) {
     setSelectedIngCats((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   }
 
+  // Add an ingredient row to the form if not present.
   function addIngredientRow(o) {
     if (!o) return;
     setForm((f) => {
@@ -202,6 +221,7 @@ export default function RecipeModal({
     setIngOptions([]);
   }
 
+  // Add a component recipe row to the form if not present.
   function addComponentRow(o) {
     if (!o) return;
     setForm((f) => {
@@ -218,6 +238,7 @@ export default function RecipeModal({
     setCompOptions([]);
   }
 
+  // Update grams/servings for a matching row.
   function setRowGramsByKey(matchKey, grams) {
     const cleaned = String(grams).replace(/[^\d]/g, "");
     setForm((f) => ({
@@ -225,18 +246,22 @@ export default function RecipeModal({
       ingredients: f.ingredients.map((r) => (matchKey(r) ? { ...r, grams: cleaned } : r)),
     }));
   }
+  // Remove a matching row.
   function removeRowByKey(matchKey) {
     setForm((f) => ({ ...f, ingredients: f.ingredients.filter((r) => !matchKey(r)) }));
   }
 
+  // Handle image file selection and show a local preview.
   function onImageFile(e) {
     const file = e.target.files?.[0] || null;
     setForm((f) => ({ ...f, imageFile: file }));
     if (file) setPreviewUrl(URL.createObjectURL(file));
   }
 
+  // Basic save gating.
   const canSave = (form.name || "").trim().length > 0 && !saving;
 
+  // Modal layout: left side metadata, right side item search and list.
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="980px" style={{ maxHeight: "85vh", overflow: "auto" }}>
@@ -249,6 +274,7 @@ export default function RecipeModal({
           </Flex>
         </Flex>
 
+        {/* Responsive grid for modal content */}
         <style>{`
           .recipe-modal-grid { display: block; }
           @media (min-width: 900px) {
@@ -264,7 +290,7 @@ export default function RecipeModal({
         `}</style>
 
         <div className="recipe-modal-grid" style={{ marginTop: 8 }}>
-          {/* LEFT */}
+          {/* LEFT: name, categories, image preview */}
           <Card p="3">
             <Flex direction="column" gap="3">
               <div>
@@ -323,7 +349,7 @@ export default function RecipeModal({
             </Flex>
           </Card>
 
-          {/* RIGHT */}
+          {/* RIGHT: item search (ingredients/components) and current list */}
           <Card p="3">
             <Flex direction="column" gap="3">
               <Flex align="center" justify="between">
@@ -334,6 +360,7 @@ export default function RecipeModal({
                 </SegmentedControl.Root>
               </Flex>
 
+              {/* Ingredient search: chips + query + results */}
               {mode === "Ingredients" && (
                 <>
                   <Flex gap="2" wrap mt="1">
@@ -379,6 +406,7 @@ export default function RecipeModal({
                 </>
               )}
 
+              {/* Component search: query + results */}
               {mode === "Components" && (
                 <>
                   <Flex gap="2" align="center">
@@ -411,6 +439,7 @@ export default function RecipeModal({
                 </>
               )}
 
+              {/* Current items list with quantity inputs and remove actions */}
               <div style={{ marginTop: 4 }}>
                 <div className="ing-grid">
                   {(form.ingredients || []).map((r, idx) => {

@@ -1,4 +1,5 @@
 // src/pages/LearnPage.jsx
+// High-level: Static "How it works" page. Explains hydration, energy, macro, and micro calculations with simple formulas.
 
 import React from 'react';
 import { Container, Heading, Text, Card, Flex, Separator, Grid, Badge, Table, Callout } from '@radix-ui/themes';
@@ -8,7 +9,7 @@ export default function LearnPage() {
   return (
     <Container size="4" py="6">
       <Flex direction="column" gap="6">
-        {/* Header */}
+        {/* Header: title + subtitle */}
         <Flex direction="column" gap="3">
           <Heading size="7">
             How Your Nutrition is Calculated
@@ -18,7 +19,7 @@ export default function LearnPage() {
           </Text>
         </Flex>
 
-        {/* Banner */}
+        {/* Evidence banner: clarifies sources and scope */}
         <Callout.Root>
           <Callout.Icon>
             <InfoCircledIcon />
@@ -30,8 +31,9 @@ export default function LearnPage() {
           </Callout.Text>
         </Callout.Root>
 
+        {/* Two-column layout for major sections */}
         <Grid columns={{ initial: '1', lg: '2' }} gap="5">
-          {/* Hydration */}
+          {/* Hydration: formula and multipliers */}
           <Card size="3" variant="surface">
             <Flex direction="column" gap="4">
               <Heading size="5">
@@ -61,7 +63,7 @@ export default function LearnPage() {
             </Flex>
           </Card>
 
-          {/* Energy Calculation */}
+          {/* Energy: BMR, TDEE, and goal adjustments */}
           <Card size="3" variant="surface">
             <Flex direction="column" gap="4">
               <Heading size="5">
@@ -107,8 +109,7 @@ export default function LearnPage() {
             </Flex>
           </Card>
 
-
-          {/* Macronutrients */}
+          {/* Macros: splits, formulas, and subtypes */}
           <Card size="3" variant="surface">
             <Flex direction="column" gap="4">
               <Heading size="5">
@@ -170,7 +171,7 @@ export default function LearnPage() {
             </Flex>
           </Card>
 
-          {/* Micronutrients */}
+          {/* Micros: RDA table and notes */}
           <Card size="3" variant="surface">
             <Flex direction="column" gap="4">
               <Heading size="5">
@@ -275,6 +276,7 @@ export default function LearnPage() {
                   </Table.Body>
                 </Table.Root>
 
+                {/* Age modifiers and cautionary note */}
                 <div>
                   <Text size="3" weight="bold" mb="2">Age-Based Adjustments</Text>
                   <Flex direction="column" gap="1" mt="2">

@@ -1,5 +1,7 @@
 // src/pages/RecipesPage.jsx
 
+// High-level: Recipes index page with search, filtering, CRUD modals, and component recipes browser.
+
 import React, { useEffect, useState, useCallback } from "react";
 import { Container, Heading, Text, Button, Card, Flex, Separator } from "@radix-ui/themes";
 import { useAuth } from "../auth/hooks/useAuth.js";
@@ -9,6 +11,7 @@ import RecipeDetailsModal from "../components/recipes/RecipeDetailsModal.jsx";
 import RecipeSearchBar from "../components/recipes/RecipeSearchBar.jsx";
 import RecipeComponentModal from "../components/recipes/RecipeComponentModal.jsx";
 
+// Helper: identifies "Component" recipes so they can be hidden from main lists.
 function isComponentRecipe(r) {
   return Array.isArray(r?.categories) && r.categories.some((x) => String(x).toLowerCase() === "component");
 }
@@ -16,22 +19,27 @@ function isComponentRecipe(r) {
 export default function RecipesPage() {
   const { user } = useAuth();
 
+  // Page state: data, filters, ui flags, errors.
   const [recipes, setRecipes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCats, setSelectedCats] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Edit modal state.
   const [editOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
+  // Details modal state.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecipe, setDetailsRecipe] = useState(null);
 
+  // Components modal state.
   const [componentsOpen, setComponentsOpen] = useState(false);
 
+  // Data loader: fetch categories and recipes, apply filters, and hide component recipes from grid.
   const loadAll = useCallback(async () => {
     setErr("");
     setLoading(true);
@@ -53,8 +61,10 @@ export default function RecipesPage() {
     }
   }, [user, search, selectedCats]);
 
+  // Run loader on mount and whenever filters/user change.
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Filter handlers: toggle category chips and clear all filters.
   const toggleCategory = useCallback((name) => {
     setSelectedCats((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
   }, []);
@@ -64,11 +74,13 @@ export default function RecipesPage() {
     setSelectedCats([]);
   }, []);
 
+  // Add flow: require auth, then open edit modal with empty initial state.
   const startAdd = useCallback(() => {
     if (!user) { setErr("Sign in to add recipes."); return; }
     setErr(""); setEditing(null); setModalOpen(true);
   }, [user]);
 
+  // Edit flow: allow only private recipes owned by user. Normalize ingredients for editor.
   const startEdit = useCallback((r) => {
     const createdBy = r?.author?.created_by || null;
     const isPublic = !!r.is_public;
@@ -95,11 +107,13 @@ export default function RecipesPage() {
     setModalOpen(true);
   }, [user]);
 
+  // Details modal open helper.
   function openDetails(r) {
     setDetailsRecipe(r);
     setDetailsOpen(true);
   }
 
+  // Client-side image resize and JPEG re-encode before upload to control file size.
   async function resizeImage(file, { maxW = 1600, maxH = 1600, maxBytes = 600 * 1024 } = {}) {
     if (!(file instanceof Blob)) return { blob: file, name: file?.name || "image" };
     const bitmap = await createImageBitmap(file);
@@ -120,6 +134,7 @@ export default function RecipesPage() {
     return { blob: blob || file, name };
   }
 
+  // Save handler: optional image upload, then upsert recipe. Refresh list on success.
   const handleSave = useCallback(async (form) => {
     if (!user) { setErr("Sign in to save."); return; }
     setSaving(true); setErr("");
@@ -159,12 +174,14 @@ export default function RecipesPage() {
     }
   }, [user, editing, loadAll]);
 
+  // Partition recipes by ownership/visibility for display sections.
   const createdById = user?.id || null;
   const pub = recipes.filter((r) => r.is_public === true);
   const mine = recipes.filter((r) => r?.author?.created_by === createdById && !r.is_public);
 
   return (
     <Container size="3" py="6">
+      {/* Header: title and actions */}
       <Flex justify="between" align="center" style={{ marginBottom: 12, gap: 8 }}>
         <div><Heading>Recipes</Heading></div>
         <Flex gap="2">
@@ -173,6 +190,7 @@ export default function RecipesPage() {
         </Flex>
       </Flex>
 
+      {/* Search and filters card */}
       <Card size="3" style={{ marginBottom: 12 }}>
         <RecipeSearchBar
           search={search}
@@ -185,9 +203,11 @@ export default function RecipesPage() {
         />
       </Card>
 
+      {/* Status messages */}
       {loading && <Text color="gray">Loading…</Text>}
       {err && <Text color="red">{err}</Text>}
 
+      {/* Private recipes grid */}
       <Heading size="3" mt="2">Your private recipes</Heading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12, marginTop: 8 }}>
         {mine.map((r) => (
@@ -215,6 +235,7 @@ export default function RecipesPage() {
 
       <Separator my="4" />
 
+      {/* Public recipes grid */}
       <Heading size="3" mt="2">Public recipes</Heading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 12, marginTop: 8 }}>
         {pub.map((r) => (
@@ -240,6 +261,7 @@ export default function RecipesPage() {
         {!loading && pub.length === 0 && <Text color="gray">No public recipes match.</Text>}
       </div>
 
+      {/* Edit/create modal */}
       <RecipeEditModal
         open={editOpen}
         onOpenChange={setModalOpen}
@@ -250,6 +272,7 @@ export default function RecipesPage() {
         onSave={handleSave}
       />
 
+      {/* Details modal with edit/delete actions gated by ownership/visibility */}
       <RecipeDetailsModal
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
@@ -272,6 +295,7 @@ export default function RecipesPage() {
         }}
       />
 
+      {/* Components modal: browse/create component-type recipes */}
       <RecipeComponentModal
         open={componentsOpen}
         onOpenChange={setComponentsOpen}
